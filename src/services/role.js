@@ -1,6 +1,7 @@
 import express from 'express';
 import moment from 'moment-timezone';
 
+import response from '../helpers/response.js';
 import db from '../config/db.js';
 
 const router = express.Router();
@@ -107,6 +108,47 @@ router.get('/hasil-kinerja/:id_pegawai', (req, res) => {
         }
 
         res.json(results);
+    });
+});
+
+router.get('/manajemen/detail/:id_role', async (req, res) => {
+    const { id_role } = req.params;
+
+    const query = `
+        SELECT role.id_role, role.nama_role, manajemen.*
+        FROM role
+        LEFT JOIN manajemen ON manajemen.role_id = role.id_role
+        WHERE role.id_role = ?
+    `;
+
+    db.query(query, [id_role], (err, results) => {
+        if (err) {
+            console.error('Error executing query:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+
+        const data = results.reduce((acc, row) => {
+            const { id_role, nama_role, ...manajemenData } = row;
+
+            if (!acc[id_role]) {
+                acc[id_role] = {
+                    id_role,
+                    nama_role,
+                    manajemen: [],
+                };
+            }
+
+            if (manajemenData.id_manajemen) {
+                acc[id_role].manajemen.push(manajemenData);
+            }
+
+            return acc;
+        }, {});
+
+        return response.success(
+            res,
+            Object.values(data)[0],
+        )
     });
 });
 
