@@ -1,7 +1,6 @@
 import express from 'express';
 import moment from 'moment-timezone';
 
-import response from '../helpers/response.js';
 import db from '../config/db.js';
 
 const router = express.Router();
@@ -111,13 +110,13 @@ router.get('/hasil-kinerja/:id_pegawai', (req, res) => {
     });
 });
 
-router.get('/manajemen/detail/:id_role', async (req, res) => {
+router.get('/manajemen/data/:id_role', async (req, res) => {
     const { id_role } = req.params;
 
     const query = `
         SELECT role.id_role, role.nama_role, manajemen.*
         FROM role
-        LEFT JOIN manajemen ON manajemen.role_id = role.id_role
+        LEFT JOIN manajemen ON manajemen.id_role = role.id_role
         WHERE role.id_role = ?
     `;
 
@@ -145,11 +144,61 @@ router.get('/manajemen/detail/:id_role', async (req, res) => {
             return acc;
         }, {});
 
-        return response.success(
-            res,
-            Object.values(data)[0],
-        )
+        return res.json(Object.values(data)[0]);
     });
 });
+
+// router.post('/manajemen/data', (req, res) => {
+//     const {namaRole, unitKerja} = req.body;
+
+//     console.log(namaRole, unitKerja);
+
+//     const query = `
+//         INSERT INTO role (nama_role, unit_kerja)
+//         VALUES (?, ?)
+//     `;
+
+//     db.query(query, [namaRole, unitKerja], (err, result) => {
+//         if (err) {
+//             console.error('Error executing query:', err);
+//             return res.status(500).json({ error: 'Internal server error' });
+//         }
+
+//         return res.status(201).json({ message: 'Data successfully added' });
+//     });
+// });
+
+router.post('/manajemen/data', (req, res) => {
+    const { namaRole, unitKerja } = req.body;
+
+    if (!namaRole || !unitKerja) {
+        return res.status(400).json({ error: 'namaRole dan unitKerja wajib diisi' });
+    }
+
+    console.log("Insert Data:", { namaRole, unitKerja });
+
+    const query = `
+        INSERT INTO role (nama_role, unit_kerja)
+        VALUES (?, ?)
+    `;
+
+    db.query(query, [namaRole, unitKerja], (err, result) => {
+        if (err) {
+            console.error('Error executing query:', err);
+            return res.status(500).json({ error: 'Internal server error', details: err.sqlMessage });
+        }
+
+        return res.status(201).json({ 
+            message: 'Data successfully added', 
+            insertId: result.insertId 
+        });
+    });
+});
+
+
+
+router.put('/manajemen/data/:id_role', (req, res) => {});
+
+router.delete('/manajemen/data/:id_role', (req, res) => {});
 
 export default router;

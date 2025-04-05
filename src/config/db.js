@@ -1,13 +1,27 @@
 import mysql from 'mysql2';
 import { Client } from 'ssh2';
 import dotenv from 'dotenv';
-import { is } from 'date-fns/locale';
 
 dotenv.config();
 
 const isLevel = process.env.LEVEL;
 
 let db;
+
+if (isLevel === 'local') {
+    const dbConfig = {
+        host: process.env.DB_HOST_LOCAL,
+        database: process.env.DB_DATABASE_LOCAL,
+        user: process.env.DB_USER_LOCAL,
+        password: process.env.DB_PASSWORD_LOCAL,
+        port: process.env.DB_PORT_LOCAL,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0
+    };
+
+    db = mysql.createPool(dbConfig);
+}
 
 if (isLevel === 'production') {
     const dbConfig = {
@@ -85,7 +99,7 @@ function keepAlive() {
         db.query('SELECT 1', (err) => {
             if (err) console.error("Database keep-alive error:", err);
         });
-    }, 30000);
+    }, process.env.SET_INTERVAL || 30000);
 }
 
 keepAlive();
