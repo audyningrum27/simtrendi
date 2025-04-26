@@ -321,7 +321,6 @@ router.put("/manajemen/pegawai/role/update/:id_role", (req, res) => {
         });
       }
 
-      // Hapus tanggung jawab lama
       const deleteManajemenQuery = `
         DELETE FROM manajemen
         WHERE id_role = ?
@@ -336,7 +335,6 @@ router.put("/manajemen/pegawai/role/update/:id_role", (req, res) => {
           });
         }
 
-        // Kalau tidak ada tanggung jawab baru
         if (!Array.isArray(tanggungJawab) || tanggungJawab.length === 0) {
           return res.status(200).json({
             id_role: parseInt(id_role),
