@@ -7,6 +7,7 @@ import cutiRoutes from "../services/cuti.js";
 import pelatihanRoutes from "../services/pelatihan.js";
 import roleDataRoutes from "../services/role.js";
 import notifikasiRoutes from "../services/notifikasi.js";
+import rapatRoutes from "../services/rapat.js";
 
 const router = express.Router();
 
@@ -18,5 +19,6 @@ router.use("/data_cuti", cutiRoutes);
 router.use("/data_pelatihan", pelatihanRoutes);
 router.use("/data_role", roleDataRoutes);
 router.use("/data_notifikasi", notifikasiRoutes);
+router.use("/data_rapat", rapatRoutes);
 
 export default router;

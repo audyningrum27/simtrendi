@@ -170,7 +170,7 @@ router.get("/manajemen/pegawai/role", (req, res) => {
       console.error("Error executing query:", err.message);
       return res
         .status(500)
-        .json({ code: 200, message: "Internal server error" });
+        .json({ code: 500, message: "Internal server error" });
     }
 
     return res.status(200).json({ code: 200, data: results });
