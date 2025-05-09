@@ -232,15 +232,81 @@ router.delete("/rapat/:id", (req, res) => {
 });
 
 router.get("/rapat/presensi/:id", (req, res) => {
-    const { id } = req.params;
-    
-    const sql = "SELECT * FROM data_presensi WHERE id_rapat = ?";
-    
-    db.query(sql, [id], (err, results) => {
-        if (err) {
-        return res.status(500).json({ code: 500, error: err.message });
-        }
-        return res.status(200).json({ code: 200, data: results });
-    });
+  const { id } = req.params;
+
+  const sql = `
+  SELECT
+    presensi_rapat.id_presensi_rapat,
+    data_pegawai.nama_pegawai,
+    role.nama_role,
+    role.nama_role,
+    presensi_rapat.jam_scan_qr,
+    presensi_rapat.status_presensi,
+    presensi_rapat.keterangan
+  FROM presensi_rapat
+  JOIN data_pegawai ON presensi_rapat.id_pegawai = data_pegawai.id_pegawai
+  JOIN role ON data_pegawai.id_role = role.id_role
+  WHERE presensi_rapat.id_rapat = ?;
+`;
+
+  db.query(sql, [id], (err, results) => {
+    if (err) {
+      return res.status(500).json({ code: 500, error: err.message });
+    }
+    return res.status(200).json({ code: 200, data: results });
+  });
 });
+
+router.put("/rapat/presensi/:id_presensi_rapat", (req, res) => {
+  const { id_presensi_rapat } = req.params;
+  const { keterangan } = req.body;
+
+  const updateSql = `
+    UPDATE presensi_rapat
+    SET keterangan = ?
+    WHERE id_presensi_rapat = ?
+  `;
+
+  db.query(updateSql, [keterangan, id_presensi_rapat], (err, result) => {
+    if (err) {
+      console.error("Gagal memperbarui data:", err);
+      return res.status(500).json({
+        status: 500,
+        message: "Gagal memperbarui data",
+        error: err.message,
+      });
+    }
+
+    const selectSql = `
+      SELECT
+        presensi_rapat.id_presensi_rapat,
+        data_pegawai.nama_pegawai,
+        role.nama_role,
+        presensi_rapat.jam_scan_qr,
+        presensi_rapat.status_presensi,
+        presensi_rapat.keterangan
+      FROM presensi_rapat
+      JOIN data_pegawai ON presensi_rapat.id_pegawai = data_pegawai.id_pegawai
+      JOIN role ON data_pegawai.id_role = role.id_role
+      WHERE presensi_rapat.id_presensi_rapat = ?;
+    `;
+
+    db.query(selectSql, [req.params.id_presensi_rapat], (err, rows) => {
+      if (err) {
+        console.error("Gagal mengambil data:", err);
+        return res.status(500).json({
+          status: 500,
+          message: "Gagal mengambil data",
+          error: err.message,
+        });
+      }
+
+      res.status(200).json({
+        status: 200,
+        data: rows,
+      });
+    });
+  });
+});
+
 export default router;
