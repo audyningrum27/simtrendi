@@ -11,7 +11,7 @@ const upload = multer({ storage: storage });
 
 router.get("/rapat", (req, res) => {
   const sql =
-    "SELECT   id_rapat, judul_rapat, nomor_surat, pelaksanaan_rapat, ruang_rapat, waktu_rapat FROM data_rapat";
+    "SELECT   id_rapat, judul_rapat, nomor_surat, pelaksanaan_rapat, ruang_rapat, tanggal_rapat, waktu_rapat FROM data_rapat";
 
   db.query(sql, (err, results) => {
     if (err) {
@@ -23,7 +23,7 @@ router.get("/rapat", (req, res) => {
 
 router.get("/rapat/hari-ini", (req, res) => {
   const sql =
-    "SELECT   id_rapat, judul_rapat, nomor_surat, pelaksanaan_rapat, ruang_rapat, waktu_rapat FROM data_rapat WHERE DATE(tanggal_rapat) = CURDATE()";
+    "SELECT   id_rapat, judul_rapat, nomor_surat, pelaksanaan_rapat, ruang_rapat, tanggal_rapat, waktu_rapat FROM data_rapat WHERE DATE(tanggal_rapat) = CURDATE()";
 
   db.query(sql, (err, results) => {
     if (err) {
@@ -35,7 +35,7 @@ router.get("/rapat/hari-ini", (req, res) => {
 
 router.get("/rapat/mendatang", (req, res) => {
   const sql =
-    "SELECT   id_rapat, judul_rapat, nomor_surat, pelaksanaan_rapat, ruang_rapat, waktu_rapat FROM data_rapat WHERE DATE(tanggal_rapat) > CURDATE()";
+    "SELECT   id_rapat, judul_rapat, nomor_surat, pelaksanaan_rapat, ruang_rapat, tanggal_rapat, waktu_rapat FROM data_rapat WHERE DATE(tanggal_rapat) > CURDATE()";
 
   db.query(sql, (err, results) => {
     if (err) {
