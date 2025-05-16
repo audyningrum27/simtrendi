@@ -1,4 +1,4 @@
-import express, { response } from "express";
+import express from "express";
 import multer from "multer";
 
 import crypto from "crypto";
@@ -10,7 +10,8 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 router.get("/rapat", (req, res) => {
-  const sql = "SELECT * FROM data_rapat";
+  const sql =
+    "SELECT   id_rapat, judul_rapat, nomor_surat, pelaksanaan_rapat, ruang_rapat, waktu_rapat FROM data_rapat";
 
   db.query(sql, (err, results) => {
     if (err) {
@@ -21,7 +22,8 @@ router.get("/rapat", (req, res) => {
 });
 
 router.get("/rapat/hari-ini", (req, res) => {
-  const sql = "SELECT * FROM data_rapat WHERE DATE(tanggal_rapat) = CURDATE()";
+  const sql =
+    "SELECT   id_rapat, judul_rapat, nomor_surat, pelaksanaan_rapat, ruang_rapat, waktu_rapat FROM data_rapat WHERE DATE(tanggal_rapat) = CURDATE()";
 
   db.query(sql, (err, results) => {
     if (err) {
@@ -32,7 +34,8 @@ router.get("/rapat/hari-ini", (req, res) => {
 });
 
 router.get("/rapat/mendatang", (req, res) => {
-  const sql = "SELECT * FROM data_rapat WHERE DATE(tanggal_rapat) > CURDATE()";
+  const sql =
+    "SELECT   id_rapat, judul_rapat, nomor_surat, pelaksanaan_rapat, ruang_rapat, waktu_rapat FROM data_rapat WHERE DATE(tanggal_rapat) > CURDATE()";
 
   db.query(sql, (err, results) => {
     if (err) {
@@ -68,6 +71,8 @@ router.post("/rapat", (req, res) => {
     tanggalRapat,
     waktuRapat,
     agendaRapat,
+    pesertaRapat = [],
+    rolePeserta = [],
   } = req.body;
 
   if (
@@ -87,14 +92,14 @@ router.post("/rapat", (req, res) => {
 
   const kodePresensi = crypto.randomBytes(35).toString("hex");
 
-  const sql = `
-        INSERT INTO data_rapat (
-          judul_rapat, nomor_surat, pelaksanaan_rapat,
-          ruang_rapat, tanggal_rapat, waktu_rapat, agenda_rapat, kode_presensi
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `;
+  const sqlInsertRapat = `
+    INSERT INTO data_rapat (
+      judul_rapat, nomor_surat, pelaksanaan_rapat,
+      ruang_rapat, tanggal_rapat, waktu_rapat, agenda_rapat, kode_presensi
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `;
 
-  const values = [
+  const valuesRapat = [
     judulRapat,
     nomorSurat,
     pelaksanaanRapat,
@@ -105,35 +110,76 @@ router.post("/rapat", (req, res) => {
     kodePresensi,
   ];
 
-  db.query(sql, values, (err, result) => {
+  db.query(sqlInsertRapat, valuesRapat, (err, result) => {
     if (err) {
-      console.error("Gagal menyimpan data:", err);
+      console.error("Gagal menyimpan data rapat:", err);
       return res.status(500).json({
         status: 500,
-        message: "Gagal menyimpan data",
+        message: "Gagal menyimpan data rapat",
         error: err.message,
       });
     }
 
-    res.status(200).json({
-      status: 200,
-      message: "Rapat berhasil ditambahkan",
+    const idRapat = result.insertId;
 
-      data: {
-        id: result.insertId,
-        nomorSurat,
-        pelaksanaanRapat,
-        ruangRapat,
-        tanggalRapat,
-        waktuRapat,
-        agendaRapat,
-        kodePresensi,
-      },
+    const presensiValues = pesertaRapat.map((idPegawai) => [
+      idPegawai,
+      idRapat,
+      "Tidak Hadir",
+    ]);
+
+    const sqlPresensi = `
+      INSERT INTO presensi_rapat (id_pegawai, id_rapat, status_presensi)
+      VALUES ?
+    `;
+
+    db.query(sqlPresensi, [presensiValues], (err) => {
+      if (err) {
+        console.error("Gagal menyimpan presensi:", err);
+        return res.status(500).json({
+          status: 500,
+          message: "Gagal menyimpan data presensi",
+          error: err.message,
+        });
+      }
+
+      const mappingValues = rolePeserta.map((idRole) => [idRapat, idRole]);
+
+      const sqlMapping = `
+        INSERT INTO mapping_rapat_role (id_rapat, id_role)
+        VALUES ?
+      `;
+
+      db.query(sqlMapping, [mappingValues], (err) => {
+        if (err) {
+          console.error("Gagal menyimpan mapping role:", err);
+          return res.status(500).json({
+            status: 500,
+            message: "Gagal menyimpan data mapping role",
+            error: err.message,
+          });
+        }
+
+        res.status(200).json({
+          status: 200,
+          message: "Rapat dan data terkait berhasil ditambahkan",
+          data: {
+            id: idRapat,
+            nomorSurat,
+            pelaksanaanRapat,
+            ruangRapat,
+            tanggalRapat,
+            waktuRapat,
+            agendaRapat,
+            kodePresensi,
+          },
+        });
+      });
     });
   });
 });
 
-router.put("/rapat/:id", upload.single("file_notulensi"), (req, res) => {
+router.put("/rapat/:id", (req, res) => {
   const { id } = req.params;
   const {
     judulRapat,
@@ -145,27 +191,26 @@ router.put("/rapat/:id", upload.single("file_notulensi"), (req, res) => {
     agendaRapat,
     teksNotulensi,
     linkNotulensi,
+    pesertaRapat = [],
+    rolePeserta = [],
   } = req.body;
 
-  const fileNotulensi = req.file ? req.file.buffer : null;
+  const sqlUpdateRapat = `
+    UPDATE data_rapat
+    SET
+      judul_rapat = ?, 
+      nomor_surat = ?, 
+      pelaksanaan_rapat = ?, 
+      ruang_rapat = ?, 
+      tanggal_rapat = ?, 
+      waktu_rapat = ?, 
+      agenda_rapat = ?, 
+      teks_notulensi = ?, 
+      link_notulensi = ?
+    WHERE id_rapat = ?
+  `;
 
-  const sql = `
-      UPDATE data_rapat
-      SET
-        judul_rapat = ?, 
-        nomor_surat = ?, 
-        pelaksanaan_rapat = ?, 
-        ruang_rapat = ?, 
-        tanggal_rapat = ?, 
-        waktu_rapat = ?, 
-        agenda_rapat = ?, 
-        teks_notulensi = ?, 
-        link_notulensi = ?,
-        file_notulensi = ?
-      WHERE id_rapat = ?
-    `;
-
-  const values = [
+  const valuesRapat = [
     judulRapat,
     nomorSurat,
     pelaksanaanRapat,
@@ -175,35 +220,95 @@ router.put("/rapat/:id", upload.single("file_notulensi"), (req, res) => {
     agendaRapat,
     teksNotulensi,
     linkNotulensi,
-    fileNotulensi,
     id,
   ];
 
-  db.query(sql, values, (err, result) => {
+  db.query(sqlUpdateRapat, valuesRapat, (err) => {
     if (err) {
-      console.error("Gagal memperbarui data:", err);
+      console.error("Gagal memperbarui data rapat:", err);
       return res.status(500).json({
         status: 500,
-        message: "Gagal memperbarui data",
+        message: "Gagal memperbarui data rapat",
         error: err.message,
       });
     }
 
-    res.status(200).json({
-      status: 200,
-      message: "Rapat berhasil diperbarui",
-      data: {
-        id,
-        judulRapat,
-        nomorSurat,
-        pelaksanaanRapat,
-        ruangRapat,
-        tanggalRapat,
-        waktuRapat,
-        agendaRapat,
-        teksNotulensi,
-        linkNotulensi,
-      },
+    const deletePresensi = `DELETE FROM presensi_rapat WHERE id_rapat = ?`;
+    db.query(deletePresensi, [id], (err) => {
+      if (err) {
+        console.error("Gagal menghapus data presensi lama:", err);
+        return res.status(500).json({
+          status: 500,
+          message: "Gagal menghapus presensi lama",
+          error: err.message,
+        });
+      }
+
+      const deleteMapping = `DELETE FROM mapping_rapat_role WHERE id_rapat = ?`;
+      db.query(deleteMapping, [id], (err) => {
+        if (err) {
+          console.error("Gagal menghapus data mapping role lama:", err);
+          return res.status(500).json({
+            status: 500,
+            message: "Gagal menghapus mapping role lama",
+            error: err.message,
+          });
+        }
+
+        const presensiValues = pesertaRapat.map((idPegawai) => [
+          idPegawai,
+          id,
+          "Tidak Hadir",
+        ]);
+        const sqlPresensi = `
+          INSERT INTO presensi_rapat (id_pegawai, id_rapat, status_presensi)
+          VALUES ?
+        `;
+        db.query(sqlPresensi, [presensiValues], (err) => {
+          if (err) {
+            console.error("Gagal menyimpan presensi baru:", err);
+            return res.status(500).json({
+              status: 500,
+              message: "Gagal menyimpan presensi baru",
+              error: err.message,
+            });
+          }
+
+          const mappingValues = rolePeserta.map((idRole) => [id, idRole]);
+          const sqlMapping = `
+            INSERT INTO mapping_rapat_role (id_rapat, id_role)
+            VALUES ?
+          `;
+          db.query(sqlMapping, [mappingValues], (err) => {
+            if (err) {
+              console.error("Gagal menyimpan mapping role baru:", err);
+              return res.status(500).json({
+                status: 500,
+                message: "Gagal menyimpan mapping role baru",
+                error: err.message,
+              });
+            }
+
+            res.status(200).json({
+              status: 200,
+              message:
+                "Rapat berhasil diperbarui beserta data peserta dan role",
+              data: {
+                id,
+                judulRapat,
+                nomorSurat,
+                pelaksanaanRapat,
+                ruangRapat,
+                tanggalRapat,
+                waktuRapat,
+                agendaRapat,
+                teksNotulensi,
+                linkNotulensi,
+              },
+            });
+          });
+        });
+      });
     });
   });
 });
@@ -306,6 +411,87 @@ router.put("/rapat/presensi/:id_presensi_rapat", (req, res) => {
         data: rows,
       });
     });
+  });
+});
+
+router.put("/rapat/presensi/qr/:kodePresensi", (req, res) => {
+  const { kodePresensi } = req.params;
+  const { idPegawai, jamScanPresensi } = req.body;
+
+  const sqlCariRapat = `SELECT id_rapat FROM data_rapat WHERE kode_presensi = ?`;
+
+  if (!kodePresensi) {
+    return res.status(400).json({
+      status: 400,
+      message: "Kode presensi tidak boleh kosong",
+    });
+  }
+
+  db.query(sqlCariRapat, [kodePresensi], (err, results) => {
+    if (err) {
+      return res.status(500).json({
+        status: 500,
+        message: "Gagal mencari rapat",
+        error: err.message,
+      });
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({
+        status: 404,
+        message: "Kode presensi tidak ditemukan",
+      });
+    }
+
+    const idRapat = results[0].id_rapat;
+
+    const sqlUpdatePresensi = `
+      UPDATE presensi_rapat
+      SET jam_scan_qr = ?, status_presensi = 'Hadir'
+      WHERE id_rapat = ? AND id_pegawai = ?
+    `;
+
+    db.query(
+      sqlUpdatePresensi,
+      [jamScanPresensi, idRapat, idPegawai],
+      (err, result) => {
+        if (err) {
+          return res.status(500).json({
+            status: 500,
+            message: "Gagal memperbarui presensi",
+            error: err.message,
+          });
+        }
+
+        if (result.affectedRows === 0) {
+          return res.status(404).json({
+            status: 404,
+            message: "Presensi tidak ditemukan untuk pegawai ini",
+          });
+        }
+
+        const sqlGetUpdated = `
+        SELECT * FROM presensi_rapat
+        WHERE id_rapat = ? AND id_pegawai = ?
+      `;
+
+        db.query(sqlGetUpdated, [idRapat, idPegawai], (err, rows) => {
+          if (err) {
+            return res.status(500).json({
+              status: 500,
+              message: "Gagal mengambil data presensi setelah update",
+              error: err.message,
+            });
+          }
+
+          return res.status(200).json({
+            status: 200,
+            message: "Presensi berhasil diperbarui",
+            data: rows[0],
+          });
+        });
+      }
+    );
   });
 });
 
