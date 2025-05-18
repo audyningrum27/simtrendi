@@ -3,6 +3,7 @@ import multer from "multer";
 
 import crypto from "crypto";
 import db from "../config/db.js";
+import { id } from "date-fns/locale";
 
 const router = express.Router();
 
@@ -10,8 +11,23 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 router.get("/rapat", (req, res) => {
-  const sql =
-    "SELECT   id_rapat, judul_rapat, nomor_surat, pelaksanaan_rapat, ruang_rapat, tanggal_rapat, waktu_rapat FROM data_rapat";
+  const sql = `
+    SELECT 
+      dr.id_rapat, 
+      dr.judul_rapat, 
+      dr.nomor_surat,
+      dr.id_ruangan,
+      r.nama_ruangan,
+      dr.pelaksanaan_rapat, 
+      dr.tanggal_rapat, 
+      dr.waktu_rapat 
+    FROM 
+      data_rapat dr
+    JOIN 
+      ruangan r
+    ON 
+      dr.id_ruangan = r.id_ruangan
+  `;
 
   db.query(sql, (err, results) => {
     if (err) {
@@ -22,8 +38,25 @@ router.get("/rapat", (req, res) => {
 });
 
 router.get("/rapat/hari-ini", (req, res) => {
-  const sql =
-    "SELECT   id_rapat, judul_rapat, nomor_surat, pelaksanaan_rapat, ruang_rapat, tanggal_rapat, waktu_rapat FROM data_rapat WHERE DATE(tanggal_rapat) = CURDATE()";
+  const sql = `
+      SELECT 
+      dr.id_rapat, 
+      dr.judul_rapat, 
+      dr.nomor_surat,
+      dr.id_ruangan,
+      r.nama_ruangan,
+      dr.pelaksanaan_rapat, 
+      dr.tanggal_rapat, 
+      dr.waktu_rapat 
+    FROM 
+      data_rapat dr
+    JOIN 
+      ruangan r
+    ON 
+      dr.id_ruangan = r.id_ruangan
+    WHERE
+      DATE(dr.tanggal_rapat) = CURDATE()
+  `;
 
   db.query(sql, (err, results) => {
     if (err) {
@@ -34,8 +67,25 @@ router.get("/rapat/hari-ini", (req, res) => {
 });
 
 router.get("/rapat/mendatang", (req, res) => {
-  const sql =
-    "SELECT   id_rapat, judul_rapat, nomor_surat, pelaksanaan_rapat, ruang_rapat, tanggal_rapat, waktu_rapat FROM data_rapat WHERE DATE(tanggal_rapat) > CURDATE()";
+  const sql = `
+      SELECT 
+      dr.id_rapat, 
+      dr.judul_rapat, 
+      dr.nomor_surat,
+      dr.id_ruangan,
+      r.nama_ruangan,
+      dr.pelaksanaan_rapat, 
+      dr.tanggal_rapat, 
+      dr.waktu_rapat 
+    FROM 
+      data_rapat dr
+    JOIN 
+      ruangan r
+    ON 
+      dr.id_ruangan = r.id_ruangan
+    WHERE
+      DATE(dr.tanggal_rapat) > CURDATE()
+  `;
 
   db.query(sql, (err, results) => {
     if (err) {
@@ -46,7 +96,30 @@ router.get("/rapat/mendatang", (req, res) => {
 });
 
 router.get("/rapat/:id", (req, res) => {
-  const sql = "SELECT * FROM data_rapat WHERE id_rapat = ?";
+  const sql = `
+    SELECT 
+      dr.id_rapat, 
+      dr.judul_rapat, 
+      dr.nomor_surat,
+      dr.id_ruangan,
+      r.nama_ruangan,
+      dr.pelaksanaan_rapat, 
+      dr.tanggal_rapat, 
+      dr.waktu_rapat,
+      dr.agenda_rapat,
+      dr.teks_notulensi,
+      dr.link_notulensi,
+      dr.kode_presensi,
+      dr.waktu_generate
+    FROM 
+      data_rapat dr
+    JOIN 
+      ruangan r
+    ON 
+      dr.id_ruangan = r.id_ruangan
+    WHERE 
+      dr.id_rapat = ?
+  `;
   const id = req.params.id;
 
   db.query(sql, [id], (err, results) => {
@@ -67,7 +140,7 @@ router.post("/rapat", (req, res) => {
     judulRapat,
     nomorSurat,
     pelaksanaanRapat,
-    ruangRapat,
+    idRuangan,
     tanggalRapat,
     waktuRapat,
     agendaRapat,
@@ -79,7 +152,7 @@ router.post("/rapat", (req, res) => {
     !judulRapat ||
     !nomorSurat ||
     !pelaksanaanRapat ||
-    !ruangRapat ||
+    !idRuangan ||
     !tanggalRapat ||
     !waktuRapat ||
     !agendaRapat
@@ -90,24 +163,21 @@ router.post("/rapat", (req, res) => {
     });
   }
 
-  const kodePresensi = crypto.randomBytes(35).toString("hex");
-
   const sqlInsertRapat = `
     INSERT INTO data_rapat (
       judul_rapat, nomor_surat, pelaksanaan_rapat,
-      ruang_rapat, tanggal_rapat, waktu_rapat, agenda_rapat, kode_presensi
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      id_ruangan, tanggal_rapat, waktu_rapat, agenda_rapat
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
   `;
 
   const valuesRapat = [
     judulRapat,
     nomorSurat,
     pelaksanaanRapat,
-    ruangRapat,
+    idRuangan,
     tanggalRapat,
     waktuRapat,
     agendaRapat,
-    kodePresensi,
   ];
 
   db.query(sqlInsertRapat, valuesRapat, (err, result) => {
@@ -115,67 +185,71 @@ router.post("/rapat", (req, res) => {
       console.error("Gagal menyimpan data rapat:", err);
       return res.status(500).json({
         status: 500,
-        message: "Gagal menyimpan data rapat",
         error: err.message,
       });
     }
 
     const idRapat = result.insertId;
 
-    const presensiValues = pesertaRapat.map((idPegawai) => [
-      idPegawai,
-      idRapat,
-      "Tidak Hadir",
-    ]);
-
-    const sqlPresensi = `
-      INSERT INTO presensi_rapat (id_pegawai, id_rapat, status_presensi)
-      VALUES ?
-    `;
-
-    db.query(sqlPresensi, [presensiValues], (err) => {
-      if (err) {
-        console.error("Gagal menyimpan presensi:", err);
-        return res.status(500).json({
-          status: 500,
-          message: "Gagal menyimpan data presensi",
-          error: err.message,
-        });
-      }
-
+    const insertMappingRoles = () => {
+      if (rolePeserta.length === 0) return insertDone();
       const mappingValues = rolePeserta.map((idRole) => [idRapat, idRole]);
-
       const sqlMapping = `
         INSERT INTO mapping_rapat_role (id_rapat, id_role)
         VALUES ?
       `;
-
       db.query(sqlMapping, [mappingValues], (err) => {
         if (err) {
           console.error("Gagal menyimpan mapping role:", err);
           return res.status(500).json({
             status: 500,
-            message: "Gagal menyimpan data mapping role",
             error: err.message,
           });
         }
-
-        res.status(200).json({
-          status: 200,
-          message: "Rapat dan data terkait berhasil ditambahkan",
-          data: {
-            id: idRapat,
-            nomorSurat,
-            pelaksanaanRapat,
-            ruangRapat,
-            tanggalRapat,
-            waktuRapat,
-            agendaRapat,
-            kodePresensi,
-          },
-        });
+        insertDone();
       });
-    });
+    };
+
+    const insertPresensi = () => {
+      if (pesertaRapat.length === 0) return insertMappingRoles();
+      const presensiValues = pesertaRapat.map((idPegawai) => [
+        idPegawai,
+        idRapat,
+        "Tidak Hadir",
+      ]);
+      const sqlPresensi = `
+        INSERT INTO presensi_rapat (id_pegawai, id_rapat, status_presensi)
+        VALUES ?
+      `;
+      db.query(sqlPresensi, [presensiValues], (err) => {
+        if (err) {
+          console.error("Gagal menyimpan presensi:", err);
+          return res.status(500).json({
+            status: 500,
+            error: err.message,
+          });
+        }
+        insertMappingRoles();
+      });
+    };
+
+    const insertDone = () => {
+      res.status(200).json({
+        status: 200,
+        message: "Data rapat berhasil disimpan",
+        data: {
+          id: idRapat,
+          nomorSurat,
+          pelaksanaanRapat,
+          idRuangan,
+          tanggalRapat,
+          waktuRapat,
+          agendaRapat,
+        },
+      });
+    };
+
+    insertPresensi();
   });
 });
 
@@ -185,7 +259,7 @@ router.put("/rapat/:id", (req, res) => {
     judulRapat,
     nomorSurat,
     pelaksanaanRapat,
-    ruangRapat,
+    idRuangan,
     tanggalRapat,
     waktuRapat,
     agendaRapat,
@@ -201,7 +275,7 @@ router.put("/rapat/:id", (req, res) => {
       judul_rapat = ?, 
       nomor_surat = ?, 
       pelaksanaan_rapat = ?, 
-      ruang_rapat = ?, 
+      id_ruangan = ?, 
       tanggal_rapat = ?, 
       waktu_rapat = ?, 
       agenda_rapat = ?, 
@@ -214,7 +288,7 @@ router.put("/rapat/:id", (req, res) => {
     judulRapat,
     nomorSurat,
     pelaksanaanRapat,
-    ruangRapat,
+    idRuangan,
     tanggalRapat,
     waktuRapat,
     agendaRapat,
@@ -255,16 +329,37 @@ router.put("/rapat/:id", (req, res) => {
           });
         }
 
-        const presensiValues = pesertaRapat.map((idPegawai) => [
-          idPegawai,
-          id,
-          "Tidak Hadir",
-        ]);
-        const sqlPresensi = `
-          INSERT INTO presensi_rapat (id_pegawai, id_rapat, status_presensi)
-          VALUES ?
-        `;
-        db.query(sqlPresensi, [presensiValues], (err) => {
+        const insertPresensi = (callback) => {
+          if (pesertaRapat.length === 0) return callback();
+          const presensiValues = pesertaRapat.map((idPegawai) => [
+            idPegawai,
+            id,
+            "Tidak Hadir",
+          ]);
+          const sqlInsertPresensi = `
+            INSERT INTO presensi_rapat (id_pegawai, id_rapat, status_presensi)
+            VALUES ?
+          `;
+          db.query(sqlInsertPresensi, [presensiValues], (err) => {
+            if (err) return callback(err);
+            callback();
+          });
+        };
+
+        const insertMapping = (callback) => {
+          if (rolePeserta.length === 0) return callback();
+          const mappingValues = rolePeserta.map((idRole) => [id, idRole]);
+          const sqlInsertMapping = `
+            INSERT INTO mapping_rapat_role (id_rapat, id_role)
+            VALUES ?
+          `;
+          db.query(sqlInsertMapping, [mappingValues], (err) => {
+            if (err) return callback(err);
+            callback();
+          });
+        };
+
+        insertPresensi((err) => {
           if (err) {
             console.error("Gagal menyimpan presensi baru:", err);
             return res.status(500).json({
@@ -274,12 +369,7 @@ router.put("/rapat/:id", (req, res) => {
             });
           }
 
-          const mappingValues = rolePeserta.map((idRole) => [id, idRole]);
-          const sqlMapping = `
-            INSERT INTO mapping_rapat_role (id_rapat, id_role)
-            VALUES ?
-          `;
-          db.query(sqlMapping, [mappingValues], (err) => {
+          insertMapping((err) => {
             if (err) {
               console.error("Gagal menyimpan mapping role baru:", err);
               return res.status(500).json({
@@ -298,12 +388,14 @@ router.put("/rapat/:id", (req, res) => {
                 judulRapat,
                 nomorSurat,
                 pelaksanaanRapat,
-                ruangRapat,
+                idRuangan,
                 tanggalRapat,
                 waktuRapat,
                 agendaRapat,
                 teksNotulensi,
                 linkNotulensi,
+                pesertaRapat,
+                rolePeserta,
               },
             });
           });
@@ -316,28 +408,52 @@ router.put("/rapat/:id", (req, res) => {
 router.delete("/rapat/:id", (req, res) => {
   const { id } = req.params;
 
-  const sql = "DELETE FROM data_rapat WHERE id_rapat = ?";
+  const deletePresensi = "DELETE FROM presensi_rapat WHERE id_rapat = ?";
+  const deleteMapping = "DELETE FROM mapping_rapat_role WHERE id_rapat = ?";
+  const deleteRapat = "DELETE FROM data_rapat WHERE id_rapat = ?";
 
-  db.query(sql, [id], (err, result) => {
+  db.query(deletePresensi, [id], (err) => {
     if (err) {
-      console.error("Gagal menghapus data:", err);
+      console.error("Gagal menghapus presensi:", err);
       return res.status(500).json({
         status: 500,
-        message: "Gagal menghapus data",
+        message: "Gagal menghapus data presensi",
         error: err.message,
       });
     }
 
-    res.status(200).json({
-      status: 200,
-      message: "Rapat berhasil dihapus",
-      data: {},
+    db.query(deleteMapping, [id], (err) => {
+      if (err) {
+        console.error("Gagal menghapus mapping role:", err);
+        return res.status(500).json({
+          status: 500,
+          message: "Gagal menghapus mapping role",
+          error: err.message,
+        });
+      }
+
+      db.query(deleteRapat, [id], (err) => {
+        if (err) {
+          console.error("Gagal menghapus rapat:", err);
+          return res.status(500).json({
+            status: 500,
+            message: "Gagal menghapus rapat",
+            error: err.message,
+          });
+        }
+
+        res.status(200).json({
+          status: 200,
+          message: "Rapat dan semua relasinya berhasil dihapus",
+          data: [],
+        });
+      });
     });
   });
 });
 
-router.get("/rapat/presensi/:id", (req, res) => {
-  const { id } = req.params;
+router.get("/rapat/presensi/:id_presensi_rapat", (req, res) => {
+  const { id_presensi_rapat } = req.params;
 
   const sql = `
   SELECT
@@ -354,7 +470,7 @@ router.get("/rapat/presensi/:id", (req, res) => {
   WHERE presensi_rapat.id_rapat = ?;
 `;
 
-  db.query(sql, [id], (err, results) => {
+  db.query(sql, [id_presensi_rapat], (err, results) => {
     if (err) {
       return res.status(500).json({ code: 500, error: err.message });
     }
@@ -414,18 +530,70 @@ router.put("/rapat/presensi/:id_presensi_rapat", (req, res) => {
   });
 });
 
+router.put("/rapat/presensi/qr/generate", (req, res) => {
+  const { idRapat, waktuSekarang } = req.body;
+
+  if (!idRapat || !waktuSekarang) {
+    return res.status(400).json({
+      status: 400,
+      message: "Field id_rapat dan waktu_sekarang harus diisi",
+    });
+  }
+
+  const kodePresensi = crypto.randomBytes(16).toString("hex");
+
+  const [jam, menit, detik] = waktuSekarang.split(":").map(Number);
+  const waktu = new Date();
+  waktu.setHours(jam);
+  waktu.setMinutes(menit + 5);
+  waktu.setSeconds(detik);
+
+  const waktuGenerate = waktu.toTimeString().split(" ")[0].substring(0, 8);
+
+  const sql = `
+    UPDATE data_rapat
+    SET kode_presensi = ?, waktu_generate = ?
+    WHERE id_rapat = ?
+  `;
+
+  db.query(sql, [kodePresensi, waktuGenerate, idRapat], (err, result) => {
+    if (err) {
+      console.error("Gagal generate kode presensi:", err);
+      return res.status(500).json({
+        status: 500,
+        message: "Gagal generate kode presensi",
+        error: err.message,
+      });
+    }
+
+    res.status(200).json({
+      status: 200,
+      message: "Kode presensi berhasil dibuat",
+      data: {
+        idRapat: idRapat,
+        kodePresensi,
+        waktuGenerate,
+      },
+    });
+  });
+});
+
 router.put("/rapat/presensi/qr/:kodePresensi", (req, res) => {
   const { kodePresensi } = req.params;
   const { idPegawai, jamScanPresensi } = req.body;
 
-  const sqlCariRapat = `SELECT id_rapat FROM data_rapat WHERE kode_presensi = ?`;
-
-  if (!kodePresensi) {
+  if (!kodePresensi || !idPegawai || !jamScanPresensi) {
     return res.status(400).json({
       status: 400,
-      message: "Kode presensi tidak boleh kosong",
+      message: "Kode presensi, ID pegawai, dan jam scan wajib diisi",
     });
   }
+
+  const sqlCariRapat = `
+    SELECT id_rapat, waktu_generate 
+    FROM data_rapat 
+    WHERE kode_presensi = ?
+  `;
 
   db.query(sqlCariRapat, [kodePresensi], (err, results) => {
     if (err) {
@@ -443,7 +611,20 @@ router.put("/rapat/presensi/qr/:kodePresensi", (req, res) => {
       });
     }
 
-    const idRapat = results[0].id_rapat;
+    const { id_rapat: idRapat, waktu_generate: waktuGenerate } = results[0];
+
+    const waktuScan = new Date(jamScanPresensi);
+    const scanJam = waktuScan.getHours().toString().padStart(2, "0");
+    const scanMenit = waktuScan.getMinutes().toString().padStart(2, "0");
+    const scanDetik = waktuScan.getSeconds().toString().padStart(2, "0");
+    const waktuScanString = `${scanJam}:${scanMenit}:${scanDetik}`;
+
+    if (waktuScanString > waktuGenerate) {
+      return res.status(403).json({
+        status: 403,
+        message: "Waktu presensi telah berakhir",
+      });
+    }
 
     const sqlUpdatePresensi = `
       UPDATE presensi_rapat
@@ -466,7 +647,7 @@ router.put("/rapat/presensi/qr/:kodePresensi", (req, res) => {
         if (result.affectedRows === 0) {
           return res.status(404).json({
             status: 404,
-            message: "Presensi tidak ditemukan untuk pegawai ini",
+            message: "ID Pegawai tidak ditemukan atau presensi tidak valid",
           });
         }
 

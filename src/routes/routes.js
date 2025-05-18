@@ -8,6 +8,7 @@ import pelatihanRoutes from "../services/pelatihan.js";
 import roleDataRoutes from "../services/role.js";
 import notifikasiRoutes from "../services/notifikasi.js";
 import rapatRoutes from "../services/rapat.js";
+import ruanganRoutes from "../services/ruangan.js";
 
 const router = express.Router();
 
@@ -20,5 +21,5 @@ router.use("/data_pelatihan", pelatihanRoutes);
 router.use("/data_role", roleDataRoutes);
 router.use("/data_notifikasi", notifikasiRoutes);
 router.use("/data_rapat", rapatRoutes);
-
+router.use("/data_ruangan", ruanganRoutes);
 export default router;
