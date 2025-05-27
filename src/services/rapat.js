@@ -96,7 +96,9 @@ router.get("/rapat/mendatang", (req, res) => {
 });
 
 router.get("/rapat/:id", (req, res) => {
-  const sql = `
+  const id = req.params.id;
+
+  const sqlRapat = `
     SELECT 
       dr.id_rapat, 
       dr.judul_rapat, 
@@ -120,18 +122,44 @@ router.get("/rapat/:id", (req, res) => {
     WHERE 
       dr.id_rapat = ?
   `;
-  const id = req.params.id;
 
-  db.query(sql, [id], (err, results) => {
+  const sqlPeserta = `SELECT id_pegawai FROM presensi_rapat WHERE id_rapat = ?`;
+  const sqlRole = `SELECT id_role FROM mapping_rapat_role WHERE id_rapat = ?`;
+
+  db.query(sqlRapat, [id], (err, rapatResult) => {
     if (err) {
       return res.status(500).json({ code: 500, error: err.message });
     }
-    if (results.length === 0) {
+    if (rapatResult.length === 0) {
       return res
         .status(404)
         .json({ code: 404, message: "Rapat tidak ditemukan" });
     }
-    return res.status(200).json({ code: 200, data: results[0] });
+
+    const rapat = rapatResult[0];
+
+    db.query(sqlPeserta, [id], (err, pesertaResult) => {
+      if (err) {
+        return res.status(500).json({ code: 500, error: err.message });
+      }
+      const peserta_rapat = pesertaResult.map((row) => row.id_pegawai);
+
+      db.query(sqlRole, [id], (err, roleResult) => {
+        if (err) {
+          return res.status(500).json({ code: 500, error: err.message });
+        }
+        const role_rapat = roleResult.map((row) => row.id_role);
+
+        return res.status(200).json({
+          code: 200,
+          data: {
+            ...rapat,
+            peserta_rapat,
+            role_rapat,
+          },
+        });
+      });
+    });
   });
 });
 
@@ -191,25 +219,6 @@ router.post("/rapat", (req, res) => {
 
     const idRapat = result.insertId;
 
-    const insertMappingRoles = () => {
-      if (rolePeserta.length === 0) return insertDone();
-      const mappingValues = rolePeserta.map((idRole) => [idRapat, idRole]);
-      const sqlMapping = `
-        INSERT INTO mapping_rapat_role (id_rapat, id_role)
-        VALUES ?
-      `;
-      db.query(sqlMapping, [mappingValues], (err) => {
-        if (err) {
-          console.error("Gagal menyimpan mapping role:", err);
-          return res.status(500).json({
-            status: 500,
-            error: err.message,
-          });
-        }
-        insertDone();
-      });
-    };
-
     const insertPresensi = () => {
       if (pesertaRapat.length === 0) return insertMappingRoles();
       const presensiValues = pesertaRapat.map((idPegawai) => [
@@ -233,19 +242,70 @@ router.post("/rapat", (req, res) => {
       });
     };
 
+    const insertMappingRoles = () => {
+      if (rolePeserta.length === 0) return insertDone();
+      const mappingValues = rolePeserta.map((idRole) => [idRapat, idRole]);
+      const sqlMapping = `
+        INSERT INTO mapping_rapat_role (id_rapat, id_role)
+        VALUES ?
+      `;
+      db.query(sqlMapping, [mappingValues], (err) => {
+        if (err) {
+          console.error("Gagal menyimpan mapping role:", err);
+          return res.status(500).json({
+            status: 500,
+            error: err.message,
+          });
+        }
+        insertDone();
+      });
+    };
+
     const insertDone = () => {
-      res.status(200).json({
-        status: 200,
-        message: "Data rapat berhasil disimpan",
-        data: {
-          id: idRapat,
-          nomorSurat,
-          pelaksanaanRapat,
-          idRuangan,
-          tanggalRapat,
-          waktuRapat,
-          agendaRapat,
-        },
+      const getPesertaQuery = `
+        SELECT id_pegawai FROM presensi_rapat WHERE id_rapat = ?
+      `;
+      const getRoleQuery = `
+        SELECT id_role FROM mapping_rapat_role WHERE id_rapat = ?
+      `;
+
+      db.query(getPesertaQuery, [idRapat], (err, pesertaResults) => {
+        if (err) {
+          console.error("Gagal mengambil data peserta:", err);
+          return res.status(500).json({
+            status: 500,
+            error: err.message,
+          });
+        }
+
+        db.query(getRoleQuery, [idRapat], (err, roleResults) => {
+          if (err) {
+            console.error("Gagal mengambil data role:", err);
+            return res.status(500).json({
+              status: 500,
+              error: err.message,
+            });
+          }
+
+          const peserta_rapat = pesertaResults.map((row) => row.id_pegawai);
+          const role_rapat = roleResults.map((row) => row.id_role);
+
+          res.status(200).json({
+            status: 200,
+            message: "Data rapat berhasil disimpan",
+            data: {
+              id_rapat: idRapat,
+              nomor_surat: nomorSurat,
+              pelaksanaan_rapat: pelaksanaanRapat,
+              id_ruangan: idRuangan,
+              tanggal_rapat: tanggalRapat,
+              waktu_rapat: waktuRapat,
+              agenda_rapat: agendaRapat,
+              peserta_rapat,
+              role_rapat,
+            },
+          });
+        });
       });
     };
 
@@ -384,18 +444,18 @@ router.put("/rapat/:id", (req, res) => {
               message:
                 "Rapat berhasil diperbarui beserta data peserta dan role",
               data: {
-                id,
-                judulRapat,
-                nomorSurat,
-                pelaksanaanRapat,
-                idRuangan,
-                tanggalRapat,
-                waktuRapat,
-                agendaRapat,
-                teksNotulensi,
-                linkNotulensi,
-                pesertaRapat,
-                rolePeserta,
+                id_rapat: id,
+                judul_rapat: judulRapat,
+                nomor_surat: nomorSurat,
+                pelaksanaan_rapat: pelaksanaanRapat,
+                id_ruangan: idRuangan,
+                tanggal_rapat: tanggalRapat,
+                waktu_rapat: waktuRapat,
+                agenda_rapat: agendaRapat,
+                teks_notulensi: teksNotulensi,
+                link_notulensi: linkNotulensi,
+                peserta_rapat: pesertaRapat,
+                role_peserta: rolePeserta,
               },
             });
           });
