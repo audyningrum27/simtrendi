@@ -41,7 +41,7 @@ router.post("/ruangan", async (req, res) => {
 
     const insertedId = results.insertId;
 
-    const selectQuery = `SELECT id, nama_ruangan FROM ruangan WHERE id = ?`;
+    const selectQuery = `SELECT id_ruangan, nama_ruangan FROM ruangan WHERE id_ruangan = ?`;
     db.query(selectQuery, [insertedId], (err, rows) => {
       if (err) {
         console.error("Error executing select query:", err.message);
@@ -65,7 +65,7 @@ router.put("/ruangan/:id", async (req, res) => {
   const updateQuery = `
             UPDATE ruangan
             SET nama_ruangan = ?
-            WHERE id = ?
+            WHERE id_ruangan = ?
             `;
 
   db.query(updateQuery, [nama_ruangan, id], (err, results) => {
@@ -83,7 +83,7 @@ router.put("/ruangan/:id", async (req, res) => {
       });
     }
 
-    const selectQuery = `SELECT id, nama_ruangan FROM ruangan WHERE id = ?`;
+    const selectQuery = `SELECT id_ruangan, nama_ruangan FROM ruangan WHERE id_ruangan = ?`;
 
     db.query(selectQuery, [id], (err, rows) => {
       if (err) {
@@ -106,7 +106,7 @@ router.delete("/ruangan/:id", async (req, res) => {
 
   const deleteQuery = `
             DELETE FROM ruangan
-            WHERE id = ?
+            WHERE id_ruangan = ?
             `;
 
   db.query(deleteQuery, [id], (err, results) => {
