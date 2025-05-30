@@ -186,7 +186,7 @@ router.post("/rapat", (req, res) => {
     !agendaRapat
   ) {
     return res.status(400).json({
-      status: 400,
+      code: 400,
       message: "Data tidak lengkap. Harap isi semua field yang diperlukan.",
     });
   }
@@ -212,7 +212,7 @@ router.post("/rapat", (req, res) => {
     if (err) {
       console.error("Gagal menyimpan data rapat:", err);
       return res.status(500).json({
-        status: 500,
+        code: 500,
         error: err.message,
       });
     }
@@ -234,7 +234,7 @@ router.post("/rapat", (req, res) => {
         if (err) {
           console.error("Gagal menyimpan presensi:", err);
           return res.status(500).json({
-            status: 500,
+            code: 500,
             error: err.message,
           });
         }
@@ -253,7 +253,7 @@ router.post("/rapat", (req, res) => {
         if (err) {
           console.error("Gagal menyimpan mapping role:", err);
           return res.status(500).json({
-            status: 500,
+            code: 500,
             error: err.message,
           });
         }
@@ -273,7 +273,7 @@ router.post("/rapat", (req, res) => {
         if (err) {
           console.error("Gagal mengambil data peserta:", err);
           return res.status(500).json({
-            status: 500,
+            code: 500,
             error: err.message,
           });
         }
@@ -282,7 +282,7 @@ router.post("/rapat", (req, res) => {
           if (err) {
             console.error("Gagal mengambil data role:", err);
             return res.status(500).json({
-              status: 500,
+              code: 500,
               error: err.message,
             });
           }
@@ -291,7 +291,7 @@ router.post("/rapat", (req, res) => {
           const role_rapat = roleResults.map((row) => row.id_role);
 
           res.status(200).json({
-            status: 200,
+            code: 200,
             message: "Data rapat berhasil disimpan",
             data: {
               id_rapat: idRapat,
@@ -361,7 +361,7 @@ router.put("/rapat/:id", (req, res) => {
     if (err) {
       console.error("Gagal memperbarui data rapat:", err);
       return res.status(500).json({
-        status: 500,
+        code: 500,
         message: "Gagal memperbarui data rapat",
         error: err.message,
       });
@@ -372,7 +372,7 @@ router.put("/rapat/:id", (req, res) => {
       if (err) {
         console.error("Gagal menghapus data presensi lama:", err);
         return res.status(500).json({
-          status: 500,
+          code: 500,
           message: "Gagal menghapus presensi lama",
           error: err.message,
         });
@@ -383,7 +383,7 @@ router.put("/rapat/:id", (req, res) => {
         if (err) {
           console.error("Gagal menghapus data mapping role lama:", err);
           return res.status(500).json({
-            status: 500,
+            code: 500,
             message: "Gagal menghapus mapping role lama",
             error: err.message,
           });
@@ -423,7 +423,7 @@ router.put("/rapat/:id", (req, res) => {
           if (err) {
             console.error("Gagal menyimpan presensi baru:", err);
             return res.status(500).json({
-              status: 500,
+              code: 500,
               message: "Gagal menyimpan presensi baru",
               error: err.message,
             });
@@ -433,14 +433,14 @@ router.put("/rapat/:id", (req, res) => {
             if (err) {
               console.error("Gagal menyimpan mapping role baru:", err);
               return res.status(500).json({
-                status: 500,
+                code: 500,
                 message: "Gagal menyimpan mapping role baru",
                 error: err.message,
               });
             }
 
             res.status(200).json({
-              status: 200,
+              code: 200,
               message:
                 "Rapat berhasil diperbarui beserta data peserta dan role",
               data: {
@@ -476,7 +476,7 @@ router.delete("/rapat/:id", (req, res) => {
     if (err) {
       console.error("Gagal menghapus presensi:", err);
       return res.status(500).json({
-        status: 500,
+        code: 500,
         message: "Gagal menghapus data presensi",
         error: err.message,
       });
@@ -486,7 +486,7 @@ router.delete("/rapat/:id", (req, res) => {
       if (err) {
         console.error("Gagal menghapus mapping role:", err);
         return res.status(500).json({
-          status: 500,
+          code: 500,
           message: "Gagal menghapus mapping role",
           error: err.message,
         });
@@ -496,14 +496,14 @@ router.delete("/rapat/:id", (req, res) => {
         if (err) {
           console.error("Gagal menghapus rapat:", err);
           return res.status(500).json({
-            status: 500,
+            code: 500,
             message: "Gagal menghapus rapat",
             error: err.message,
           });
         }
 
         res.status(200).json({
-          status: 200,
+          code: 200,
           message: "Rapat dan semua relasinya berhasil dihapus",
           data: [],
         });
@@ -552,7 +552,7 @@ router.put("/rapat/presensi/:id_presensi_rapat", (req, res) => {
     if (err) {
       console.error("Gagal memperbarui data:", err);
       return res.status(500).json({
-        status: 500,
+        code: 500,
         message: "Gagal memperbarui data",
         error: err.message,
       });
@@ -576,14 +576,14 @@ router.put("/rapat/presensi/:id_presensi_rapat", (req, res) => {
       if (err) {
         console.error("Gagal mengambil data:", err);
         return res.status(500).json({
-          status: 500,
+          code: 500,
           message: "Gagal mengambil data",
           error: err.message,
         });
       }
 
       res.status(200).json({
-        status: 200,
+        code: 200,
         data: rows,
       });
     });
@@ -595,7 +595,7 @@ router.put("/rapat/presensi/qr/generate", (req, res) => {
 
   if (!idRapat || !waktuSekarang) {
     return res.status(400).json({
-      status: 400,
+      code: 400,
       message: "Field id_rapat dan waktu_sekarang harus diisi",
     });
   }
@@ -620,14 +620,14 @@ router.put("/rapat/presensi/qr/generate", (req, res) => {
     if (err) {
       console.error("Gagal generate kode presensi:", err);
       return res.status(500).json({
-        status: 500,
+        code: 500,
         message: "Gagal generate kode presensi",
         error: err.message,
       });
     }
 
     res.status(200).json({
-      status: 200,
+      code: 200,
       message: "Kode presensi berhasil dibuat",
       data: {
         idRapat: idRapat,
@@ -644,7 +644,7 @@ router.put("/rapat/presensi/qr/:kodePresensi", (req, res) => {
 
   if (!kodePresensi || !idPegawai || !jamScanPresensi) {
     return res.status(400).json({
-      status: 400,
+      code: 400,
       message: "Kode presensi, ID pegawai, dan jam scan wajib diisi",
     });
   }
@@ -658,7 +658,7 @@ router.put("/rapat/presensi/qr/:kodePresensi", (req, res) => {
   db.query(sqlCariRapat, [kodePresensi], (err, results) => {
     if (err) {
       return res.status(500).json({
-        status: 500,
+        code: 500,
         message: "Gagal mencari rapat",
         error: err.message,
       });
@@ -666,7 +666,7 @@ router.put("/rapat/presensi/qr/:kodePresensi", (req, res) => {
 
     if (results.length === 0) {
       return res.status(404).json({
-        status: 404,
+        code: 404,
         message: "Kode presensi tidak ditemukan",
       });
     }
@@ -681,7 +681,7 @@ router.put("/rapat/presensi/qr/:kodePresensi", (req, res) => {
 
     if (waktuScanString > waktuGenerate) {
       return res.status(403).json({
-        status: 403,
+        code: 403,
         message: "Waktu presensi telah berakhir",
       });
     }
@@ -698,7 +698,7 @@ router.put("/rapat/presensi/qr/:kodePresensi", (req, res) => {
       (err, result) => {
         if (err) {
           return res.status(500).json({
-            status: 500,
+            code: 500,
             message: "Gagal memperbarui presensi",
             error: err.message,
           });
@@ -706,7 +706,7 @@ router.put("/rapat/presensi/qr/:kodePresensi", (req, res) => {
 
         if (result.affectedRows === 0) {
           return res.status(404).json({
-            status: 404,
+            code: 404,
             message: "ID Pegawai tidak ditemukan atau presensi tidak valid",
           });
         }
@@ -719,14 +719,14 @@ router.put("/rapat/presensi/qr/:kodePresensi", (req, res) => {
         db.query(sqlGetUpdated, [idRapat, idPegawai], (err, rows) => {
           if (err) {
             return res.status(500).json({
-              status: 500,
+              code: 500,
               message: "Gagal mengambil data presensi setelah update",
               error: err.message,
             });
           }
 
           return res.status(200).json({
-            status: 200,
+            code: 200,
             message: "Presensi berhasil diperbarui",
             data: rows[0],
           });
@@ -736,4 +736,38 @@ router.put("/rapat/presensi/qr/:kodePresensi", (req, res) => {
   });
 });
 
+router.get("/rapat/presensi/karyawan/:idKaryawan", (req, res) => {
+  const { idKaryawan } = req.params;
+
+  const query = `
+    SELECT
+      dr.id_rapat,
+      dr.judul_rapat,
+      dr.pelaksanaan_rapat,
+      dr.tanggal_rapat,
+      dr.waktu_rapat,
+      pr.id_presensi_rapat,
+      pr.id_pegawai,
+      pr.status_presensi,
+      CASE
+        WHEN CONCAT(dr.tanggal_rapat, ' ', dr.waktu_rapat) < NOW() THEN 'Selesai'
+        WHEN DATE(dr.tanggal_rapat) = CURDATE() THEN 'Hari Ini'
+        WHEN CONCAT(dr.tanggal_rapat, ' ', dr.waktu_rapat) > NOW() THEN 'Mendatang'
+        ELSE 'Tidak Diketahui'
+      END AS status_waktu
+    FROM data_rapat AS dr
+    JOIN presensi_rapat AS pr ON dr.id_rapat = pr.id_rapat
+    WHERE pr.id_pegawai = ?
+    ORDER BY dr.tanggal_rapat DESC, dr.waktu_rapat DESC
+  `;
+
+  db.query(query, [idKaryawan], (err, results) => {
+    if (err) {
+      console.error("Error executing query:", err);
+      return res.status(500).json({ error: "Internal Server Error" });
+    }
+
+    res.status(200).json({ code: 200, data: results });
+  });
+});
 export default router;
