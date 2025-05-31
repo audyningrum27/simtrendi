@@ -3,7 +3,6 @@ import multer from "multer";
 
 import crypto from "crypto";
 import db from "../config/db.js";
-import { id } from "date-fns/locale";
 
 const router = express.Router();
 
@@ -733,6 +732,37 @@ router.put("/rapat/presensi/qr/:kodePresensi", (req, res) => {
         });
       }
     );
+  });
+});
+
+router.get("/rapat/presensi/karyawan/dashboard", (req, res) => {
+  const query = `
+  SELECT
+      dp.nama_pegawai,
+      r.nama_role,
+      CAST(COUNT(CASE WHEN pr.status_presensi = 'Hadir' THEN 1 END) AS CHAR) AS jumlah_hadir,
+      CAST(COUNT(CASE WHEN pr.status_presensi = 'Tidak Hadir' THEN 1 END) AS CHAR) AS jumlah_tidak_hadir,
+      CAST(COUNT(*) AS CHAR) AS total_diundang,
+      CAST(ROUND(
+          100.0 * COUNT(CASE WHEN pr.status_presensi = 'Hadir' THEN 1 END) / COUNT(*)
+      ) AS CHAR) AS persentase_hadir,
+      CAST(ROUND(
+          100.0 * COUNT(CASE WHEN pr.status_presensi = 'Tidak Hadir' THEN 1 END) / COUNT(*)
+      ) AS CHAR) AS persentase_tidak_hadir
+  FROM presensi_rapat pr
+  JOIN data_pegawai AS dp ON pr.id_pegawai = dp.id_pegawai
+  JOIN role AS r ON dp.id_role = r.id_role
+  GROUP BY dp.nama_pegawai, r.nama_role
+  ORDER BY dp.nama_pegawai;
+  `;
+
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Error executing query:", err);
+      return res.status(500).json({ error: "Internal Server Error" });
+    }
+
+    res.status(200).json({ code: 200, data: results });
   });
 });
 
