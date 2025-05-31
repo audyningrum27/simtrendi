@@ -28,8 +28,8 @@ router.get("/cuti/all", (req, res) => {
         c.id_pegawai,
         c.tanggal_mulai,
         c.tanggal_selesai,
-        c.bukti_form_izin,
-        c.status_cuti
+        c.status_cuti,
+        c.alasan
     FROM 
         data_cuti c
     JOIN 
@@ -42,23 +42,139 @@ router.get("/cuti/all", (req, res) => {
       return res.status(500).json({ message: "Internal Server Error" });
     }
 
-    return res.json(results);
+    return res.json({ code: 200, data: results });
   });
 });
 
-router.delete("/cuti/expired", (req, res) => {
+router.get("/cuti/:id_pegawai", (req, res) => {
+  const { id_pegawai } = req.params;
+
   const query = `
-        DELETE FROM data_cuti
-        WHERE status_cuti = 'Proses' AND tanggal_selesai < CURDATE()
-    `;
-  db.query(query, (err, result) => {
+    SELECT 
+        c.id_cuti,
+        c.id_pegawai,
+        c.tanggal_mulai,
+        c.tanggal_selesai,
+        c.alasan,
+        c.status_cuti,
+        pka.status AS status_kaur,
+        pkt.status AS status_kanit,
+        pk.status AS status_kadiv
+    FROM data_cuti c
+    LEFT JOIN persetujuan_kaur pka ON c.id_cuti = pka.id_cuti
+    LEFT JOIN persetujuan_kanit pkt ON c.id_cuti = pkt.id_cuti
+    LEFT JOIN persetujuan_kadiv pk ON c.id_cuti = pk.id_cuti
+    WHERE c.id_pegawai = ?
+  `;
+
+  db.query(query, [id_pegawai], (err, results) => {
     if (err) {
       console.error(err);
       return res.status(500).json({ message: "Internal Server Error" });
     }
 
-    return res.json({ message: `${result.affectedRows} cuti telah dihapus` });
+    const convertedResults = results.map((row) => ({
+      ...row,
+      status_kadiv: !!row.status_kadiv,
+      status_kaur: !!row.status_kaur,
+      status_kanit: !!row.status_kanit,
+    }));
+
+    return res.status(200).json({ code: 200, data: convertedResults });
   });
+});
+
+router.post("/cuti", (req, res) => {
+  const { idPegawai, tanggalMulai, tanggalSelesai, alasan } = req.body;
+
+  if (!alasan) {
+    return res.status(400).json({ message: "Alasan cuti wajib diisi" });
+  }
+
+  const insertCutiQuery = `
+    INSERT INTO data_cuti (id_pegawai, tanggal_mulai, tanggal_selesai, alasan, status_cuti)
+    VALUES (?, ?, ?, ?, 'Proses')
+  `;
+
+  db.query(
+    insertCutiQuery,
+    [idPegawai, tanggalMulai, tanggalSelesai, alasan],
+    (err, result) => {
+      if (err) {
+        console.error("Insert cuti error:", err);
+        return res.status(500).json({ message: "Gagal menyimpan data cuti" });
+      }
+
+      const idCutiBaru = result.insertId;
+
+      const insertKadiv = `INSERT INTO persetujuan_kadiv (id_cuti, status) VALUES (?, 0)`;
+      const insertKaur = `INSERT INTO persetujuan_kaur (id_cuti, status) VALUES (?, 0)`;
+      const insertHrd = `INSERT INTO persetujuan_kanit (id_cuti, status) VALUES (?, 0)`;
+
+      db.query(insertKadiv, [idCutiBaru], (err1) => {
+        if (err1)
+          return res
+            .status(500)
+            .json({ message: "Gagal insert ke persetujuan_kadiv" });
+
+        db.query(insertKaur, [idCutiBaru], (err2) => {
+          if (err2)
+            return res
+              .status(500)
+              .json({ message: "Gagal insert ke persetujuan_kaur" });
+
+          db.query(insertHrd, [idCutiBaru], (err3) => {
+            if (err3)
+              return res
+                .status(500)
+                .json({ message: "Gagal insert ke persetujuan_kanit" });
+
+            const getCutiQuery = `
+              SELECT 
+                dc.id_cuti,
+                dp.nama_pegawai,
+                r.nama_role,
+                dc.tanggal_mulai,
+                dc.tanggal_selesai,
+                dc.alasan,
+                dc.status_cuti,
+                CASE WHEN pk.status = 1 THEN true ELSE false END AS status_kadiv,
+                CASE WHEN pka.status = 1 THEN true ELSE false END AS status_kaur,
+                CASE WHEN pkt.status = 1 THEN true ELSE false END AS status_kanit
+              FROM data_cuti dc
+              JOIN data_pegawai dp ON dc.id_pegawai = dp.id_pegawai
+              JOIN role r ON dp.id_role = r.id_role
+              LEFT JOIN persetujuan_kadiv pk ON dc.id_cuti = pk.id_cuti
+              LEFT JOIN persetujuan_kaur pka ON dc.id_cuti = pka.id_cuti
+              LEFT JOIN persetujuan_kanit pkt ON dc.id_cuti = pkt.id_cuti
+              WHERE dc.id_cuti = ?
+            `;
+
+            db.query(getCutiQuery, [idCutiBaru], (err4, results) => {
+              if (err4) {
+                console.error("Gagal ambil data cuti:", err4);
+                return res
+                  .status(500)
+                  .json({ message: "Gagal mengambil data cuti" });
+              }
+
+              const result = results[0];
+
+              result.status_kadiv = !!result.status_kadiv;
+              result.status_kaur = !!result.status_kaur;
+              result.status_kanit = !!result.status_kanit;
+
+              return res.status(200).json({
+                code: 200,
+                message: "Pengajuan Cuti Berhasil",
+                data: results,
+              });
+            });
+          });
+        });
+      });
+    }
+  );
 });
 
 router.get("/cuti/approved", (req, res) => {
@@ -71,7 +187,7 @@ router.get("/cuti/approved", (req, res) => {
         c.id_pegawai,
         c.tanggal_mulai,
         c.tanggal_selesai,
-        c.bukti_form_izin,
+        c.alasan,
         c.status_cuti
     FROM 
         data_cuti c
@@ -124,116 +240,31 @@ router.get("/cuti/approved/:id_pegawai", (req, res) => {
   });
 });
 
-router.post("/cuti", upload.single("bukti_form_izin"), (req, res) => {
-  const { id_pegawai, tanggalMulai, tanggalSelesai } = req.body;
-  const file = req.file;
-
-  if (!file) {
-    return res.status(400).json({ message: "No file uploaded" });
-  }
-
-  const buktiFormIzinBuffer = file.buffer;
-
+router.delete("/cuti/expired", (req, res) => {
   const query = `
-        INSERT INTO data_cuti (id_pegawai, tanggal_mulai, tanggal_selesai, bukti_form_izin, status_cuti)
-        VALUES (?, ?, ?, ?, 'Proses')
+        DELETE FROM data_cuti
+        WHERE status_cuti = 'Proses' AND tanggal_selesai < CURDATE()
     `;
-  db.query(
-    query,
-    [id_pegawai, tanggalMulai, tanggalSelesai, buktiFormIzinBuffer],
-    (err, result) => {
-      if (err) {
-        console.error(err);
-        return res.status(500).json({ message: "Internal Server Error" });
-      }
-
-      return res
-        .status(201)
-        .json({ message: "Pengajuan Cuti Berhasil", id_cuti: result.insertId });
-    }
-  );
-});
-
-router.get("/cuti/:id_pegawai", (req, res) => {
-  const { id_pegawai } = req.params;
-  const query = `
-    SELECT 
-        c.id_cuti,
-        c.id_pegawai,
-        c.tanggal_mulai,
-        c.tanggal_selesai,
-        c.bukti_form_izin,
-        c.status_cuti
-    FROM 
-        data_cuti c
-    WHERE 
-        c.id_pegawai = ?
-    `;
-  db.query(query, [id_pegawai], (err, results) => {
+  db.query(query, (err, result) => {
     if (err) {
       console.error(err);
       return res.status(500).json({ message: "Internal Server Error" });
     }
 
-    return res.json(results);
+    return res.json({ message: `${result.affectedRows} cuti telah dihapus` });
   });
 });
 
-router.get("/cuti/view-bukti/:id_cuti", (req, res) => {
-  const { id_cuti } = req.params;
-
-  const sql = "SELECT bukti_form_izin FROM data_cuti WHERE id_cuti = ?";
-  db.query(sql, [id_cuti], (err, result) => {
-    if (err) {
-      console.error("Error executing query:", err);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-
-    if (result.length > 0) {
-      const buktiFormIzin = result[0].bukti_form_izin;
-      if (buktiFormIzin) {
-        const buffer = Buffer.from(buktiFormIzin, "base64");
-
-        let contentType = "image/jpeg";
-        const fileSignature = buffer.slice(0, 4).toString("hex");
-
-        if (fileSignature === "89504e47") {
-          contentType = "image/png";
-        } else if (fileSignature === "25504446") {
-          contentType = "application/pdf";
-        }
-
-        res.setHeader("Content-Type", contentType);
-        res.send(buffer);
-      } else {
-        res.status(404).json({ error: "Bukti Form Izin not found" });
-      }
-    } else {
-      res.status(404).json({ error: "Cuti not found" });
-    }
-  });
+router.put("/cuti/approval/kaur/:idCuti", (req, res) => {
+  const { idCuti } = req.params;
 });
 
-router.put("/cuti/:id_pegawai", (req, res) => {
-  const { id_pegawai } = req.params;
-  const { status_cuti } = req.body;
-  const query = `
-        UPDATE data_cuti
-        SET status_cuti = ?
-        WHERE id_cuti = ?
-    `;
-  db.query(query, [status_cuti, id_pegawai], (err, result) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ message: "Internal Server Error" });
-    }
+router.put("/cuti/approval/kanit/:idCuti", (req, res) => {
+  const { idCuti } = req.params;
+});
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "Cuti tidak ditemukan" });
-    }
-
-    return res.status(200).json({ message: "Status cuti berhasil diperbarui" });
-  });
+router.put("/cuti/approval/kadiv/:idCuti", (req, res) => {
+  const { idCuti } = req.params;
 });
 
 router.get("/cuti/daily", (req, res) => {
@@ -333,15 +364,6 @@ router.get("/notifikasi/:id_pegawai", (req, res) => {
     }
 
     return res.json(results);
-  });
-});
-
-router.get("/download-template-cuti", (req, res) => {
-  res.download(TEMPLATE_PATH, "form_izin_template.docx", (err) => {
-    if (err) {
-      console.error("Error downloading file:", err);
-      res.status(500).json({ message: "Internal Server Error" });
-    }
   });
 });
 
