@@ -255,16 +255,218 @@ router.delete("/cuti/expired", (req, res) => {
   });
 });
 
-router.put("/cuti/approval/kaur/:idCuti", (req, res) => {
-  const { idCuti } = req.params;
-});
+router.put("/cuti/approval", (req, res) => {
+  try {
+    const { idCuti, idPegawai, status } = req.body;
 
-router.put("/cuti/approval/kanit/:idCuti", (req, res) => {
-  const { idCuti } = req.params;
-});
+    db.query(
+      "SELECT * FROM data_cuti WHERE id_cuti = ?",
+      [idCuti],
+      (err, cutiResults) => {
+        if (err) {
+          console.error("Gagal ambil cutiResults:", err);
+          return res.status(500).json({ code: 500, error: "Kesalahan server" });
+        }
 
-router.put("/cuti/approval/kadiv/:idCuti", (req, res) => {
-  const { idCuti } = req.params;
+        if (!cutiResults.length) {
+          return res
+            .status(400)
+            .json({ code: 400, error: "Cuti tidak ditemukan" });
+        }
+
+        if (cutiResults[0].status_cuti !== "Proses") {
+          return res
+            .status(400)
+            .json({ code: 400, error: "Cuti sudah dikonfirmasi atau selesai" });
+        }
+
+        const checkPegawaiQuery = `
+            SELECT 
+              dp.id_pegawai,
+              dp.nama_pegawai,
+              r.nama_role,
+              CASE
+                WHEN r.nama_role IN (
+                  'Guru MA / Kaur TTQ',
+                  'Guru MTs / Kaur TTQ',
+                  'Guru MTs / Kaur HUDA, IT dan Media'
+                ) THEN 'KAUR'
+                WHEN r.nama_role IN (
+                  'Kepala Divisi Ekonomi',
+                  'Kepala Divisi HRD & Personalia',
+                  'Kepala Divisi Humas & Dakwah',
+                  'Kepala Divisi Sarana & Bangunan',
+                  'Kepala Divisi Perguruan Tinggi',
+                  'Kepala Divisi Pesantren & Pendidikan Hk 1',
+                  'Kepala Divisi Pesantren & Pendidikan Hk 2'
+                ) THEN 'KADIV'
+                WHEN r.nama_role IN (
+                  'Guru MA / Kanit Pembinaan Pa',
+                  'Guru MA / Kanit Pembinaan Pi',
+                  'Guru MA / Kanit TTQ',
+                  'Guru MA / Kepala Madrasah Tsanawiyah',
+                  'Guru MTs / Sekretaris Divisi Pesantren',
+                  'Kepala Madrasah Aliyah',
+                  'Guru MTs / Kanit Pembinaan HK 2',
+                  'Guru MTs / Sekretaris Pondok HK 2',
+                  'Kamad MTs HK 2',
+                  'Kepala Unit Dapur Umum',
+                  'Kepala Unit Keuangan',
+                  'Kepala Unit Klinik Pratama',
+                  'Guru MA / Kanit Sekretariat Yayasan'
+                ) THEN 'KANIT'
+                ELSE 'LAINNYA'
+              END AS status_role
+            FROM data_pegawai dp
+            JOIN role r ON dp.id_role = r.id_role
+            WHERE dp.id_pegawai = ?
+      `;
+
+        db.query(checkPegawaiQuery, [idPegawai], (err, roleResults) => {
+          if (err) {
+            console.error("Gagal ambil roleResults:", err);
+            return res
+              .status(500)
+              .json({ code: 500, error: "Kesalahan server saat ambil role" });
+          }
+
+          if (!roleResults.length) {
+            return res
+              .status(400)
+              .json({ code: 400, error: "Pegawai tidak ditemukan" });
+          }
+
+          const role = roleResults[0].status_role;
+
+          if (role === "LAINNYA") {
+            return res.status(403).json({
+              code: 403,
+              error: "Anda tidak memiliki hak persetujuan",
+            });
+          }
+
+          const tableMap = {
+            KAUR: "persetujuan_kaur",
+            KANIT: "persetujuan_kanit",
+            KADIV: "persetujuan_kadiv",
+          };
+
+          const tableRole = tableMap[role];
+
+          const checkPersetujuanQuery = `
+                SELECT * FROM ${tableRole} WHERE id_cuti = ?
+            `;
+
+          db.query(
+            checkPersetujuanQuery,
+            [idCuti],
+            (err, persetujuanResults) => {
+              if (err) {
+                console.error("Gagal ambil persetujuanResults:", err);
+                return res
+                  .status(500)
+                  .json({ code: 500, error: "Kesalahan server" });
+              }
+
+              if (
+                persetujuanResults[0].status === 1 &&
+                persetujuanResults[0].id_pegawai !== null &&
+                persetujuanResults[0].tanggal_konfirmasi !== null
+              ) {
+                return res.status(400).json({
+                  code: 400,
+                  error: "Telah disetujui",
+                });
+              }
+
+              const updatePersetujuanQuery = `
+                    UPDATE ${tableRole}
+                    SET status = 1, id_pegawai = ?, tanggal_konfirmasi = NOW()
+                    WHERE id_cuti = ?
+                `;
+
+              db.query(
+                updatePersetujuanQuery,
+                [idPegawai, idCuti],
+                (updateErr, persetujuanUpdate) => {
+                  if (updateErr) {
+                    console.error("Gagal update persetujuan:", updateErr);
+                    return res
+                      .status(500)
+                      .json({ code: 500, error: "Gagal update persetujuan" });
+                  }
+
+                  const checkStatusPersetujuanQuery = `
+                              SELECT 'kaur' as role, status FROM persetujuan_kaur WHERE id_cuti = ?
+                              UNION
+                              SELECT 'kanit' as role, status FROM persetujuan_kanit WHERE id_cuti = ?
+                              UNION
+                              SELECT 'kadiv' as role, status FROM persetujuan_kadiv WHERE id_cuti = ?
+                    `;
+
+                  db.query(
+                    checkStatusPersetujuanQuery,
+                    [idCuti, idCuti, idCuti],
+                    (checkErr, results) => {
+                      if (checkErr) {
+                        console.error(
+                          "Gagal mengecek status persetujuan:",
+                          checkErr
+                        );
+                        return res.status(500).json({
+                          code: 500,
+                          error: "Gagal mengecek status persetujuan",
+                        });
+                      }
+
+                      const belumSetuju = results
+                        .filter((row) => row.status !== 1)
+                        .map((row) => row.role);
+
+                      if (belumSetuju.length === 0) {
+                        db.query(
+                          `UPDATE data_cuti SET status_cuti = 'Diterima' WHERE id_cuti = ?`,
+                          [idCuti],
+                          (updateCutiErr, updateCutiRes) => {
+                            if (updateCutiErr) {
+                              console.error(
+                                "Gagal update status data_cuti:",
+                                updateCutiErr
+                              );
+                              return res.status(500).json({
+                                code: 500,
+                                error:
+                                  "Persetujuan lengkap, tapi gagal memperbarui status cuti.",
+                              });
+                            }
+
+                            return res.status(200).json({
+                              code: 200,
+                              data: {
+                                id_cuti: idCuti,
+                                status_cuti: "Diterima",
+                              },
+                            });
+                          }
+                        );
+                      } else {
+                        return res.status(200).json({
+                          code: 200,
+                          data: belumSetuju,
+                        });
+                      }
+                    }
+                  );
+                }
+              );
+            }
+          );
+        });
+      }
+    );
+  } catch (error) {
+    return res.status(500).json({ code: 500, error: "Internal Server Error" });
+  }
 });
 
 router.get("/cuti/daily", (req, res) => {
