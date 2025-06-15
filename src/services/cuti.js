@@ -475,8 +475,8 @@ router.put("/cuti/approval", (req, res) => {
                             }
 
                             const query = `
-                                INSERT INTO notifikasi (id_pegawai, message, tanggal, type)
-                                VALUES (?, ?, NOW(), 'pegawai')
+                                INSERT INTO notifikasi (id_pegawai, message, tanggal, type, category)
+                                VALUES (?, ?, NOW(), 'pegawai', 'cuti')
                             `;
 
                             const message = `Cuti telah disetujui oleh semua pihak. Silakan cek status cuti Anda.`;
