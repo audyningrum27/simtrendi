@@ -158,17 +158,51 @@ router.post("/cuti", (req, res) => {
                   .json({ message: "Gagal mengambil data cuti" });
               }
 
+              const formatDate = (date) => {
+                const d = new Date(date);
+                const day = String(d.getDate()).padStart(2, "0");
+                const month = String(d.getMonth() + 1).padStart(2, "0");
+                const year = d.getFullYear();
+                return `${day}/${month}/${year}`;
+              };
+
               const result = results[0];
 
               result.status_kadiv = !!result.status_kadiv;
               result.status_kaur = !!result.status_kaur;
               result.status_kanit = !!result.status_kanit;
 
-              return res.status(200).json({
-                code: 200,
-                message: "Pengajuan Cuti Berhasil",
-                data: results,
-              });
+              const message = `${
+                result.nama_pegawai
+              } melakukan pengajuan cuti dari ${formatDate(
+                result.tanggal_mulai
+              )} hingga ${formatDate(result.tanggal_selesai)}.`;
+
+              const notifQuery = `
+                  INSERT INTO notifikasi (id_pegawai, message, tanggal, type, category)
+                  VALUES 
+                    (?, ?, NOW(), 'pegawai', 'cuti'),
+                    (?, ?, NOW(), 'admin', 'cuti')
+                `;
+
+              db.query(
+                notifQuery,
+                [idPegawai, message, idPegawai, message],
+                (notifErr) => {
+                  if (notifErr) {
+                    console.error("Gagal menambahkan notifikasi:", notifErr);
+                    return res
+                      .status(500)
+                      .json({ message: "Gagal menambahkan notifikasi" });
+                  }
+
+                  return res.status(200).json({
+                    code: 200,
+                    message: "Pengajuan Cuti Berhasil",
+                    data: results,
+                  });
+                }
+              );
             });
           });
         });
@@ -257,7 +291,7 @@ router.delete("/cuti/expired", (req, res) => {
 
 router.put("/cuti/approval", (req, res) => {
   try {
-    const { idCuti, idPegawai, status } = req.body;
+    const { idCuti, idPegawai, idPegawaiCuti, status } = req.body;
 
     db.query(
       "SELECT * FROM data_cuti WHERE id_cuti = ?",
@@ -440,13 +474,37 @@ router.put("/cuti/approval", (req, res) => {
                               });
                             }
 
-                            return res.status(200).json({
-                              code: 200,
-                              data: {
-                                id_cuti: idCuti,
-                                status_cuti: "Diterima",
-                              },
-                            });
+                            const query = `
+                                INSERT INTO notifikasi (id_pegawai, message, tanggal, type)
+                                VALUES (?, ?, NOW(), 'pegawai')
+                            `;
+
+                            const message = `Cuti telah disetujui oleh semua pihak. Silakan cek status cuti Anda.`;
+
+                            db.query(
+                              query,
+                              [idPegawaiCuti, message],
+                              (notifErr, notifResult) => {
+                                if (notifErr) {
+                                  console.error(
+                                    "Gagal menambahkan notifikasi:",
+                                    notifErr
+                                  );
+                                  return res.status(500).json({
+                                    code: 500,
+                                    error: "Gagal menambahkan notifikasi",
+                                  });
+                                }
+
+                                return res.status(200).json({
+                                  code: 200,
+                                  data: {
+                                    id_cuti: idCuti,
+                                    status_cuti: "Diterima",
+                                  },
+                                });
+                              }
+                            );
                           }
                         );
                       } else {

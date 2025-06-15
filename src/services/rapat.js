@@ -286,23 +286,57 @@ router.post("/rapat", (req, res) => {
             });
           }
 
-          const peserta_rapat = pesertaResults.map((row) => row.id_pegawai);
-          const role_rapat = roleResults.map((row) => row.id_role);
+          const values = pesertaRapat.map((idPegawai) => [
+            idPegawai,
+            `Anda diundang dalam rapat: "${judulRapat}" yang akan dilaksanakan pada ${tanggalRapat} pukul ${waktuRapat} secara ${pelaksanaanRapat}.`,
+          ]);
 
-          res.status(200).json({
-            code: 200,
-            message: "Data rapat berhasil disimpan",
-            data: {
-              id_rapat: idRapat,
-              nomor_surat: nomorSurat,
-              pelaksanaan_rapat: pelaksanaanRapat,
-              id_ruangan: idRuangan,
-              tanggal_rapat: tanggalRapat,
-              waktu_rapat: waktuRapat,
-              agenda_rapat: agendaRapat,
-              peserta_rapat,
-              role_rapat,
-            },
+          const randomAdminId =
+            pesertaRapat[Math.floor(Math.random() * pesertaRapat.length)];
+
+          const adminValues = [
+            [
+              randomAdminId,
+              `Rapat "${judulRapat}" yang akan dilaksanakan pada ${tanggalRapat} pukul ${waktuRapat} secara ${pelaksanaanRapat}.`,
+            ],
+          ];
+
+          const allValues = [...values, ...adminValues];
+
+          const placeholders = [
+            ...values.map(() => "(?, ?, NOW(), 'pegawai', 'rapat')"),
+            ...adminValues.map(() => "(?, ?, NOW(), 'admin', 'rapat')"),
+          ].join(", ");
+
+          const sql = `
+          INSERT INTO notifikasi (id_pegawai, message, tanggal, type, category)
+          VALUES ${placeholders}
+        `;
+
+          db.query(sql, allValues.flat(), (err, result) => {
+            if (err) {
+              console.error("Gagal menambahkan notifikasi:", err);
+              return res.status(500).json({ code: 500, error: err.message });
+            }
+
+            const peserta_rapat = pesertaResults.map((row) => row.id_pegawai);
+            const role_rapat = roleResults.map((row) => row.id_role);
+
+            res.status(200).json({
+              code: 200,
+              message: "Data rapat berhasil disimpan",
+              data: {
+                id_rapat: idRapat,
+                nomor_surat: nomorSurat,
+                pelaksanaan_rapat: pelaksanaanRapat,
+                id_ruangan: idRuangan,
+                tanggal_rapat: tanggalRapat,
+                waktu_rapat: waktuRapat,
+                agenda_rapat: agendaRapat,
+                peserta_rapat,
+                role_rapat,
+              },
+            });
           });
         });
       });
@@ -438,24 +472,59 @@ router.put("/rapat/:id", (req, res) => {
               });
             }
 
-            res.status(200).json({
-              code: 200,
-              message:
-                "Rapat berhasil diperbarui beserta data peserta dan role",
-              data: {
-                id_rapat: id,
-                judul_rapat: judulRapat,
-                nomor_surat: nomorSurat,
-                pelaksanaan_rapat: pelaksanaanRapat,
-                id_ruangan: idRuangan,
-                tanggal_rapat: tanggalRapat,
-                waktu_rapat: waktuRapat,
-                agenda_rapat: agendaRapat,
-                teks_notulensi: teksNotulensi,
-                link_notulensi: linkNotulensi,
-                peserta_rapat: pesertaRapat,
-                role_peserta: rolePeserta,
-              },
+            const randomAdminId =
+              pesertaRapat[Math.floor(Math.random() * pesertaRapat.length)];
+
+            const messagePegawai = `Rapat "${judulRapat}" telah diperbarui. Jadwal baru: ${tanggalRapat} pukul ${waktuRapat}, secara ${pelaksanaanRapat}.`;
+            const messageAdmin = `Rapat "${judulRapat}" telah diperbarui dan dijadwalkan ulang menjadi tanggal ${tanggalRapat} pukul ${waktuRapat}, secara ${pelaksanaanRapat}.`;
+
+            const values = pesertaRapat.map((idPegawai) => [
+              idPegawai,
+              messagePegawai,
+            ]);
+
+            const adminValues = [[randomAdminId, messageAdmin]];
+
+            const allValues = [...values, ...adminValues];
+
+            const placeholders = [
+              ...values.map(() => "(?, ?, NOW(), 'pegawai', 'rapat')"),
+              ...adminValues.map(() => "(?, ?, NOW(), 'admin', 'rapat')"),
+            ].join(", ");
+
+            const sql = `
+              INSERT INTO notifikasi (id_pegawai, message, tanggal, type, category)
+              VALUES ${placeholders}
+            `;
+
+            db.query(sql, allValues.flat(), (err, result) => {
+              if (err) {
+                console.error(
+                  "Gagal menambahkan notifikasi update rapat:",
+                  err
+                );
+                return res.status(500).json({ code: 500, error: err.message });
+              }
+
+              res.status(200).json({
+                code: 200,
+                message:
+                  "Rapat berhasil diperbarui beserta data peserta dan role",
+                data: {
+                  id_rapat: id,
+                  judul_rapat: judulRapat,
+                  nomor_surat: nomorSurat,
+                  pelaksanaan_rapat: pelaksanaanRapat,
+                  id_ruangan: idRuangan,
+                  tanggal_rapat: tanggalRapat,
+                  waktu_rapat: waktuRapat,
+                  agenda_rapat: agendaRapat,
+                  teks_notulensi: teksNotulensi,
+                  link_notulensi: linkNotulensi,
+                  peserta_rapat: pesertaRapat,
+                  role_peserta: rolePeserta,
+                },
+              });
             });
           });
         });
