@@ -11,6 +11,7 @@ app.use(
     origin: [
       "http://localhost:5173",
       "http://localhost:3000",
+      "https://simatren.cloud",
       "https://fe-simatren.riset-d3rpla.com",
     ],
     methods: ["GET", "POST", "PUT", "DELETE"],
