@@ -172,11 +172,10 @@ router.post("/cuti", (req, res) => {
               result.status_kaur = !!result.status_kaur;
               result.status_kanit = !!result.status_kanit;
 
-              const message = `${
-                result.nama_pegawai
-              } melakukan pengajuan cuti dari ${formatDate(
-                result.tanggal_mulai
-              )} hingga ${formatDate(result.tanggal_selesai)}.`;
+              const message = `${result.nama_pegawai
+                } melakukan pengajuan cuti dari ${formatDate(
+                  result.tanggal_mulai
+                )} hingga ${formatDate(result.tanggal_selesai)}.`;
 
               const notifQuery = `
                   INSERT INTO notifikasi (id_pegawai, message, tanggal, type, category)
@@ -454,9 +453,9 @@ router.put("/cuti/approval", (req, res) => {
                         }
 
                         const query = `
-                                INSERT INTO notifikasi (id_pegawai, message, tanggal, type, category)
-                                VALUES (?, ?, NOW(), 'pegawai', 'cuti')
-                            `;
+                    INSERT INTO notifikasi (id_pegawai, message, tanggal, type, category)
+                    VALUES (?, ?, NOW(), 'pegawai', 'cuti')
+                `;
 
                         const message = `Cuti Anda telah ditolak oleh ${roleResults[0].nama_role}. Silakan cek status cuti Anda.`;
 
@@ -488,112 +487,112 @@ router.put("/cuti/approval", (req, res) => {
                     );
                   }
                 );
-              }
-
-              const updatePersetujuanQuery = `
-                    UPDATE ${tableRole}
-                    SET status = 1, id_pegawai = ?, tanggal_konfirmasi = NOW()
-                    WHERE id_cuti = ?
+              } else {
+                const updatePersetujuanQuery = `
+                  UPDATE ${tableRole}
+                  SET status = 1, id_pegawai = ?, tanggal_konfirmasi = NOW()
+                  WHERE id_cuti = ?
                 `;
 
-              db.query(
-                updatePersetujuanQuery,
-                [idPegawai, idCuti],
-                (updateErr, persetujuanUpdate) => {
-                  if (updateErr) {
-                    console.error("Gagal update persetujuan:", updateErr);
-                    return res
-                      .status(500)
-                      .json({ code: 500, error: "Gagal update persetujuan" });
-                  }
+                db.query(
+                  updatePersetujuanQuery,
+                  [idPegawai, idCuti],
+                  (updateErr, persetujuanUpdate) => {
+                    if (updateErr) {
+                      console.error("Gagal update persetujuan:", updateErr);
+                      return res
+                        .status(500)
+                        .json({ code: 500, error: "Gagal update persetujuan" });
+                    }
 
-                  const checkStatusPersetujuanQuery = `
-                              SELECT 'kaur' as role, status FROM persetujuan_kaur WHERE id_cuti = ?
-                              UNION
-                              SELECT 'kanit' as role, status FROM persetujuan_kanit WHERE id_cuti = ?
-                              UNION
-                              SELECT 'kadiv' as role, status FROM persetujuan_kadiv WHERE id_cuti = ?
-                    `;
+                    const checkStatusPersetujuanQuery = `
+                    SELECT 'kaur' as role, status FROM persetujuan_kaur WHERE id_cuti = ?
+                    UNION
+                    SELECT 'kanit' as role, status FROM persetujuan_kanit WHERE id_cuti = ?
+                    UNION
+                    SELECT 'kadiv' as role, status FROM persetujuan_kadiv WHERE id_cuti = ?
+          `;
 
-                  db.query(
-                    checkStatusPersetujuanQuery,
-                    [idCuti, idCuti, idCuti],
-                    (checkErr, results) => {
-                      if (checkErr) {
-                        console.error(
-                          "Gagal mengecek status persetujuan:",
-                          checkErr
-                        );
-                        return res.status(500).json({
-                          code: 500,
-                          error: "Gagal mengecek status persetujuan",
-                        });
-                      }
+                    db.query(
+                      checkStatusPersetujuanQuery,
+                      [idCuti, idCuti, idCuti],
+                      (checkErr, results) => {
+                        if (checkErr) {
+                          console.error(
+                            "Gagal mengecek status persetujuan:",
+                            checkErr
+                          );
+                          return res.status(500).json({
+                            code: 500,
+                            error: "Gagal mengecek status persetujuan",
+                          });
+                        }
 
-                      const belumSetuju = results
-                        .filter((row) => row.status !== 1)
-                        .map((row) => row.role);
+                        const belumSetuju = results
+                          .filter((row) => row.status !== 1)
+                          .map((row) => row.role);
 
-                      if (belumSetuju.length === 0) {
-                        db.query(
-                          `UPDATE data_cuti SET status_cuti = 'Diterima' WHERE id_cuti = ?`,
-                          [idCuti],
-                          (updateCutiErr, updateCutiRes) => {
-                            if (updateCutiErr) {
-                              console.error(
-                                "Gagal update status data_cuti:",
-                                updateCutiErr
-                              );
-                              return res.status(500).json({
-                                code: 500,
-                                error:
-                                  "Persetujuan lengkap, tapi gagal memperbarui status cuti.",
-                              });
-                            }
-
-                            const query = `
-                                INSERT INTO notifikasi (id_pegawai, message, tanggal, type, category)
-                                VALUES (?, ?, NOW(), 'pegawai', 'cuti')
-                            `;
-
-                            const message = `Cuti telah disetujui oleh semua pihak. Silakan cek status cuti Anda.`;
-
-                            db.query(
-                              query,
-                              [idPegawaiCuti, message],
-                              (notifErr, notifResult) => {
-                                if (notifErr) {
-                                  console.error(
-                                    "Gagal menambahkan notifikasi:",
-                                    notifErr
-                                  );
-                                  return res.status(500).json({
-                                    code: 500,
-                                    error: "Gagal menambahkan notifikasi",
-                                  });
-                                }
-
-                                return res.status(200).json({
-                                  code: 200,
-                                  data: {
-                                    id_cuti: idCuti,
-                                    status_cuti: "Diterima",
-                                  },
+                        if (belumSetuju.length === 0) {
+                          db.query(
+                            `UPDATE data_cuti SET status_cuti = 'Diterima' WHERE id_cuti = ?`,
+                            [idCuti],
+                            (updateCutiErr, updateCutiRes) => {
+                              if (updateCutiErr) {
+                                console.error(
+                                  "Gagal update status data_cuti:",
+                                  updateCutiErr
+                                );
+                                return res.status(500).json({
+                                  code: 500,
+                                  error:
+                                    "Persetujuan lengkap, tapi gagal memperbarui status cuti.",
                                 });
                               }
-                            );
-                          }
-                        );
-                      } else {
-                        return res.status(200).json({
-                          code: 200,
-                          data: belumSetuju,
-                        });
+
+                              const query = `
+                      INSERT INTO notifikasi (id_pegawai, message, tanggal, type, category)
+                      VALUES (?, ?, NOW(), 'pegawai', 'cuti')
+                  `;
+
+                              const message = `Cuti telah disetujui oleh semua pihak. Silakan cek status cuti Anda.`;
+
+                              db.query(
+                                query,
+                                [idPegawaiCuti, message],
+                                (notifErr, notifResult) => {
+                                  if (notifErr) {
+                                    console.error(
+                                      "Gagal menambahkan notifikasi:",
+                                      notifErr
+                                    );
+                                    return res.status(500).json({
+                                      code: 500,
+                                      error: "Gagal menambahkan notifikasi",
+                                    });
+                                  }
+
+                                  return res.status(200).json({
+                                    code: 200,
+                                    data: {
+                                      id_cuti: idCuti,
+                                      status_cuti: "Diterima",
+                                    },
+                                  });
+                                }
+                              );
+                            }
+                          );
+                        } else {
+                          return res.status(200).json({
+                            code: 200,
+                            data: belumSetuju,
+                          });
+                        }
                       }
-                    }
-                  );
-                }
-              );
+                    );
+                  }
+                );
+              }
             }
           );
         });
