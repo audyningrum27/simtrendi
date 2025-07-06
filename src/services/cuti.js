@@ -308,6 +308,12 @@ router.put("/cuti/approval", (req, res) => {
             .json({ code: 400, error: "Cuti tidak ditemukan" });
         }
 
+        if (cutiResults[0].status_cuti === "Ditolak") {
+          return res
+            .status(400)
+            .json({ code: 400, error: "Cuti sudah ditolak" });
+        }
+
         if (cutiResults[0].status_cuti !== "Proses") {
           return res
             .status(400)
@@ -411,6 +417,77 @@ router.put("/cuti/approval", (req, res) => {
                   code: 400,
                   error: "Telah disetujui",
                 });
+              }
+
+              if (status == false || status == 0) {
+                const updatePersetujuanDitolak = `
+                    UPDATE ${tableRole}
+                    SET status = 0, id_pegawai = ?, tanggal_konfirmasi = NOW()
+                    WHERE id_cuti = ?
+                `;
+
+                db.query(
+                  updatePersetujuanDitolak,
+                  [idPegawai, idCuti],
+                  (updateErr, persetujuanUpdate) => {
+                    if (updateErr) {
+                      console.error("Gagal update persetujuan:", updateErr);
+                      return res
+                        .status(500)
+                        .json({ code: 500, error: "Gagal update persetujuan" });
+                    }
+
+                    db.query(
+                      `UPDATE data_cuti SET status_cuti = 'Ditolak' WHERE id_cuti = ?`,
+                      [idCuti],
+                      (updateCutiErr, updateCutiRes) => {
+                        if (updateCutiErr) {
+                          console.error(
+                            "Gagal update status data_cuti:",
+                            updateCutiErr
+                          );
+                          return res.status(500).json({
+                            code: 500,
+                            error:
+                              "Persetujuan lengkap, tapi gagal memperbarui status cuti.",
+                          });
+                        }
+
+                        const query = `
+                                INSERT INTO notifikasi (id_pegawai, message, tanggal, type, category)
+                                VALUES (?, ?, NOW(), 'pegawai', 'cuti')
+                            `;
+
+                        const message = `Cuti Anda telah ditolak oleh ${roleResults[0].nama_role}. Silakan cek status cuti Anda.`;
+
+                        db.query(
+                          query,
+                          [idPegawaiCuti, message],
+                          (notifErr, notifResult) => {
+                            if (notifErr) {
+                              console.error(
+                                "Gagal menambahkan notifikasi:",
+                                notifErr
+                              );
+                              return res.status(500).json({
+                                code: 500,
+                                error: "Gagal menambahkan notifikasi",
+                              });
+                            }
+
+                            return res.status(200).json({
+                              code: 200,
+                              data: {
+                                id_cuti: idCuti,
+                                status_cuti: "Ditolak",
+                              },
+                            });
+                          }
+                        );
+                      }
+                    );
+                  }
+                );
               }
 
               const updatePersetujuanQuery = `
