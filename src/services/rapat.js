@@ -584,19 +584,20 @@ router.get("/rapat/presensi/:id_presensi_rapat", (req, res) => {
   const { id_presensi_rapat } = req.params;
 
   const sql = `
-  SELECT
-    presensi_rapat.id_presensi_rapat,
-    data_pegawai.nama_pegawai,
-    role.nama_role,
-    role.nama_role,
-    presensi_rapat.jam_scan_qr,
-    presensi_rapat.status_presensi,
-    presensi_rapat.keterangan
-  FROM presensi_rapat
-  JOIN data_pegawai ON presensi_rapat.id_pegawai = data_pegawai.id_pegawai
-  JOIN role ON data_pegawai.id_role = role.id_role
-  WHERE presensi_rapat.id_rapat = ?;
-`;
+      SELECT
+        pr.id_presensi_rapat,
+        dp.id_pegawai,
+        dp.nama_pegawai,
+        r.nama_role,
+        r.nama_role,
+        pr.jam_scan_qr,
+        pr.status_presensi,
+        pr.keterangan
+      FROM presensi_rapat pr
+      JOIN data_pegawai dp ON pr.id_pegawai = dp.id_pegawai
+      JOIN role r ON dp.id_role = r.id_role
+      WHERE pr.id_rapat = ?;
+  `;
 
   db.query(sql, [id_presensi_rapat], (err, results) => {
     if (err) {

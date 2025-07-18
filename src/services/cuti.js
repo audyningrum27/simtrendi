@@ -29,6 +29,7 @@ router.get("/cuti/all", (req, res) => {
         c.tanggal_mulai,
         c.tanggal_selesai,
         c.status_cuti,
+        c.total_cuti,
         c.alasan
     FROM 
         data_cuti c
@@ -57,6 +58,7 @@ router.get("/cuti/:id_pegawai", (req, res) => {
         c.tanggal_selesai,
         c.alasan,
         c.status_cuti,
+        DATEDIFF(c.tanggal_selesai, c.tanggal_mulai) + 1 AS total_cuti_tahunan,
         pka.status AS status_kaur,
         pkt.status AS status_kanit,
         pk.status AS status_kadiv
@@ -91,14 +93,19 @@ router.post("/cuti", (req, res) => {
     return res.status(400).json({ message: "Alasan cuti wajib diisi" });
   }
 
+  const mulai = new Date(tanggalMulai);
+  const selesai = new Date(tanggalSelesai);
+  const selisihMs = selesai - mulai;
+  const totalCuti = Math.ceil(selisihMs / (1000 * 60 * 60 * 24)) + 1;
+
   const insertCutiQuery = `
-    INSERT INTO data_cuti (id_pegawai, tanggal_mulai, tanggal_selesai, alasan, status_cuti)
-    VALUES (?, ?, ?, ?, 'Proses')
+    INSERT INTO data_cuti (id_pegawai, tanggal_mulai, tanggal_selesai, alasan, total_cuti, status_cuti)
+    VALUES (?, ?, ?, ?, ?, 'Proses')
   `;
 
   db.query(
     insertCutiQuery,
-    [idPegawai, tanggalMulai, tanggalSelesai, alasan],
+    [idPegawai, tanggalMulai, tanggalSelesai, alasan, totalCuti],
     (err, result) => {
       if (err) {
         console.error("Insert cuti error:", err);
@@ -137,6 +144,7 @@ router.post("/cuti", (req, res) => {
                 dc.tanggal_mulai,
                 dc.tanggal_selesai,
                 dc.alasan,
+                dc.total_cuti,
                 dc.status_cuti,
                 CASE WHEN pk.status = 1 THEN true ELSE false END AS status_kadiv,
                 CASE WHEN pka.status = 1 THEN true ELSE false END AS status_kaur,
@@ -172,10 +180,11 @@ router.post("/cuti", (req, res) => {
               result.status_kaur = !!result.status_kaur;
               result.status_kanit = !!result.status_kanit;
 
-              const message = `${result.nama_pegawai
-                } melakukan pengajuan cuti dari ${formatDate(
-                  result.tanggal_mulai
-                )} hingga ${formatDate(result.tanggal_selesai)}.`;
+              const message = `${
+                result.nama_pegawai
+              } melakukan pengajuan cuti dari ${formatDate(
+                result.tanggal_mulai
+              )} hingga ${formatDate(result.tanggal_selesai)}.`;
 
               const notifQuery = `
                   INSERT INTO notifikasi (id_pegawai, message, tanggal, type, category)
@@ -240,7 +249,6 @@ router.get("/cuti/approved", (req, res) => {
 });
 
 router.get("/cuti/approved/:id_pegawai", (req, res) => {
-  console.log("GET /api/data_cuti/cuti/approved/:id_pegawai");
   const { id_pegawai } = req.params;
   if (!id_pegawai) {
     return res.status(400).json({ message: "id_pegawai is required" });
