@@ -288,7 +288,7 @@ router.post("/rapat", (req, res) => {
 
           const values = pesertaRapat.map((idPegawai) => [
             idPegawai,
-            `Anda diundang dalam rapat: "${judulRapat}" yang akan dilaksanakan pada ${tanggalRapat} pukul ${waktuRapat} secara ${pelaksanaanRapat}.`,
+            `Anda diundang dalam rapat: "${judulRapat}" yang akan dilaksanakan pada ${tanggalRapat} pukul ${waktuRapat} pelaksana ${pelaksanaanRapat}.`,
           ]);
 
           const randomAdminId =
@@ -297,7 +297,7 @@ router.post("/rapat", (req, res) => {
           const adminValues = [
             [
               randomAdminId,
-              `Rapat "${judulRapat}" yang akan dilaksanakan pada ${tanggalRapat} pukul ${waktuRapat} secara ${pelaksanaanRapat}.`,
+              `Rapat "${judulRapat}" yang akan dilaksanakan pada ${tanggalRapat} pukul ${waktuRapat} pelaksana ${pelaksanaanRapat}.`,
             ],
           ];
 
@@ -475,8 +475,8 @@ router.put("/rapat/:id", (req, res) => {
             const randomAdminId =
               pesertaRapat[Math.floor(Math.random() * pesertaRapat.length)];
 
-            const messagePegawai = `Rapat "${judulRapat}" telah diperbarui. Jadwal baru: ${tanggalRapat} pukul ${waktuRapat}, secara ${pelaksanaanRapat}.`;
-            const messageAdmin = `Rapat "${judulRapat}" telah diperbarui dan dijadwalkan ulang menjadi tanggal ${tanggalRapat} pukul ${waktuRapat}, secara ${pelaksanaanRapat}.`;
+            const messagePegawai = `Rapat "${judulRapat}" telah diperbarui. Jadwal baru: ${tanggalRapat} pukul ${waktuRapat}, pelaksana ${pelaksanaanRapat}.`;
+            const messageAdmin = `Rapat "${judulRapat}" telah diperbarui dan dijadwalkan ulang menjadi tanggal ${tanggalRapat} pukul ${waktuRapat}, pelaksana ${pelaksanaanRapat}.`;
 
             const values = pesertaRapat.map((idPegawai) => [
               idPegawai,
@@ -660,49 +660,54 @@ router.put("/rapat/presensi/:id_presensi_rapat", (req, res) => {
 });
 
 router.put("/rapat/presensi/qr/generate", (req, res) => {
-  const { idRapat, waktuSekarang } = req.body;
+  const { idRapat } = req.body;
 
-  if (!idRapat || !waktuSekarang) {
+  if (!idRapat) {
     return res.status(400).json({
       code: 400,
-      message: "Field id_rapat dan waktu_sekarang harus diisi",
+      message: "Field idRapat harus diisi",
     });
   }
 
-  const kodePresensi = crypto.randomBytes(16).toString("hex");
-
-  const [jam, menit, detik] = waktuSekarang.split(":").map(Number);
-  const waktu = new Date();
-  waktu.setHours(jam);
-  waktu.setMinutes(menit + 5);
-  waktu.setSeconds(detik);
-
-  const waktuGenerate = waktu.toTimeString().split(" ")[0].substring(0, 8);
-
-  const sql = `
-    UPDATE data_rapat
-    SET kode_presensi = ?, waktu_generate = ?
-    WHERE id_rapat = ?
-  `;
-
-  db.query(sql, [kodePresensi, waktuGenerate, idRapat], (err, result) => {
+  const sqlGetRapat = "SELECT tanggal_rapat, waktu_rapat FROM data_rapat WHERE id_rapat = ?";
+  db.query(sqlGetRapat, [idRapat], (err, rapatResults) => {
     if (err) {
-      console.error("Gagal generate kode presensi:", err);
-      return res.status(500).json({
-        code: 500,
-        message: "Gagal generate kode presensi",
-        error: err.message,
+      return res.status(500).json({ code: 500, error: "Gagal mengambil data rapat." });
+    }
+    if (rapatResults.length === 0) {
+      return res.status(404).json({ code: 404, message: "Rapat tidak ditemukan." });
+    }
+
+    const rapat = rapatResults[0];
+    const meetingStartTime = new Date(`${rapat.tanggal_rapat.toISOString().split('T')[0]}T${rapat.waktu_rapat}`);
+    const now = new Date();
+
+    if (now < meetingStartTime) {
+      return res.status(403).json({
+        code: 403,
+        message: "QR code belum bisa dibuat karena rapat belum dimulai.",
       });
     }
 
-    res.status(200).json({
-      code: 200,
-      message: "Kode presensi berhasil dibuat",
-      data: {
-        idRapat: idRapat,
-        kodePresensi,
-        waktuGenerate,
-      },
+    const kodePresensi = crypto.randomBytes(16).toString("hex");
+    const waktuGenerate = new Date();
+    waktuGenerate.setMinutes(waktuGenerate.getMinutes() + 1);
+
+    const sqlUpdateQR = `
+      UPDATE data_rapat
+      SET kode_presensi = ?, waktu_generate = ?
+      WHERE id_rapat = ?
+    `;
+
+    db.query(sqlUpdateQR, [kodePresensi, waktuGenerate.toTimeString().split(" ")[0], idRapat], (err) => {
+      if (err) {
+        return res.status(500).json({ code: 500, message: "Gagal generate kode presensi", error: err.message });
+      }
+      res.status(200).json({
+        code: 200,
+        message: "Kode presensi berhasil dibuat",
+        data: { idRapat, kodePresensi, waktuGenerate: waktuGenerate.toTimeString().split(" ")[0] },
+      });
     });
   });
 });
@@ -811,15 +816,16 @@ router.get("/rapat/presensi/karyawan/dashboard", (req, res) => {
       dp.nama_pegawai,
       r.nama_role,
       CAST(COUNT(CASE WHEN pr.status_presensi = 'Hadir' THEN 1 END) AS CHAR) AS jumlah_hadir,
-      CAST(COUNT(CASE WHEN pr.status_presensi = 'Tidak Hadir' THEN 1 END) AS CHAR) AS jumlah_tidak_hadir,
+      CAST(COUNT(CASE WHEN pr.status_presensi = 'Tidak Hadir' AND CONCAT(dr.tanggal_rapat, ' ', dr.waktu_rapat) < NOW() THEN 1 END) AS CHAR) AS jumlah_tidak_hadir,
       CAST(COUNT(*) AS CHAR) AS total_diundang,
       CAST(ROUND(
           100.0 * COUNT(CASE WHEN pr.status_presensi = 'Hadir' THEN 1 END) / COUNT(*)
       ) AS CHAR) AS persentase_hadir,
       CAST(ROUND(
-          100.0 * COUNT(CASE WHEN pr.status_presensi = 'Tidak Hadir' THEN 1 END) / COUNT(*)
+          100.0 * COUNT(CASE WHEN pr.status_presensi = 'Tidak Hadir' AND CONCAT(dr.tanggal_rapat, ' ', dr.waktu_rapat) < NOW() THEN 1 END) / COUNT(*)
       ) AS CHAR) AS persentase_tidak_hadir
   FROM presensi_rapat pr
+  JOIN data_rapat AS dr ON pr.id_rapat = dr.id_rapat
   JOIN data_pegawai AS dp ON pr.id_pegawai = dp.id_pegawai
   JOIN role AS r ON dp.id_role = r.id_role
   GROUP BY dp.nama_pegawai, r.nama_role
